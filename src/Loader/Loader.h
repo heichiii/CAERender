@@ -5,6 +5,7 @@ class Loader
 {
 public:
     explicit Loader(const std::string& filename) : filename_(filename) {}
+    virtual ~Loader() = default;
     virtual MeshPart load() = 0;
 
 protected:
