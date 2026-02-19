@@ -1,6 +1,6 @@
 #include "VTKLoader.h"
 #include "Data/MeshPart.h"
-#include "Test/Profiler.h"
+#include "TestTool/Profiler.h"
 #include <fstream>
 #include <iostream>
 #include <stdexcept>
@@ -12,7 +12,7 @@
 #include <vtkXMLPolyDataReader.h>
 #include <vtkXMLUnstructuredGridReader.h>
 
-MeshPart VTKLoader::load()
+MeshPart VTK::VTKLoader::load()
 {
     PROFILE_CODE
 

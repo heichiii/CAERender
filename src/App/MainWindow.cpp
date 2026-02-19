@@ -5,7 +5,7 @@
 #include <QFileDialog>
 #include <QMenuBar>
 #include "Loader/LoaderFactory.h"
-#include "Test/Profiler.h"
+#include "TestTool/Profiler.h"
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     setWindowTitle("Hello, Qt!");
@@ -31,14 +31,15 @@ void MainWindow::openFile()
         return;
     }
 
-    auto loader = LoaderFactory::createLoader(filename.toStdString());
-    if (!loader)
-    {
-        qWarning() << "[MainWindow::openFile] :  Unsupported file format:" << filename;
-        return;
-    }
+    // auto loader = LoaderFactory::createLoader(filename.toStdString());
+    // if (!loader)
+    // {
+    //     qWarning() << "[MainWindow::openFile] :  Unsupported file format:" << filename;
+    //     return;
+    // }
 
-    MeshPart meshPart = loader->load();
+    // glWidget_->renderer_.case_data_.timeSteps_[0].parts_[0] = loader->load();
+    glWidget_->loadFile(filename.toStdString());
     // qInfo() << "[MainWindow::openFile] :  Loaded mesh part with"
     //         << meshPart.getVertices().size() << "vertices and"
     //         << meshPart.getFaces().size() << "faces.";
