@@ -1,9 +1,12 @@
 #pragma once
 #include "Loader.h"
-
-class VTKLoader : public Loader
+namespace VTK
 {
-public:
-    VTKLoader(const std::string& filename) : Loader(filename) {};
-    MeshPart load() override;
-};
+    class VTKLoader : public Loader
+    {
+    public:
+        VTKLoader(const std::string& filename) : Loader(filename) {};
+        ~VTKLoader() override = default;
+        MeshPart load() override;
+    };
+} // namespace VTK
