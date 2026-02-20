@@ -16,7 +16,6 @@ MeshPart VTK::VTKLoader::load()
 {
     PROFILE_CODE
 
-    MeshPart mesh_part;
     std::ifstream file_stream(filename_, std::ios::in);
     if (!file_stream.is_open())
     {
@@ -36,14 +35,14 @@ MeshPart VTK::VTKLoader::load()
             auto reader = vtkSmartPointer<vtkXMLUnstructuredGridReader>::New();
             reader->SetFileName(filename_.c_str());
             reader->Update();
-            mesh_part.dataset_ = reader->GetOutput();
+            dataset_ = reader->GetOutput();
         }
         else
         {
             auto reader = vtkSmartPointer<vtkXMLPolyDataReader>::New();
             reader->SetFileName(filename_.c_str());
             reader->Update();
-            mesh_part.dataset_ = reader->GetOutput();
+            dataset_ = reader->GetOutput();
         }
     }
     else
@@ -84,7 +83,7 @@ MeshPart VTK::VTKLoader::load()
             auto poly_reader = vtkSmartPointer<vtkPolyDataReader>::New();
             poly_reader->SetFileName(filename_.c_str());
             poly_reader->Update();
-            mesh_part.dataset_ = poly_reader->GetOutput();
+            dataset_ = poly_reader->GetOutput();
         }
         else
         {
@@ -94,62 +93,203 @@ MeshPart VTK::VTKLoader::load()
             reader->Update();
 
 
-            mesh_part.dataset_ = reader->GetOutput();
+            dataset_ = reader->GetOutput();
         }
     }
-    mesh_part.name_ = filename_;
-    mesh_part.points_ = mesh_part.dataset_->GetPoints();
-    mesh_part.point_data_ = mesh_part.dataset_->GetPointData();
-    mesh_part.num_cells_ = mesh_part.dataset_->GetNumberOfCells();
-    mesh_part.cell_data_ = mesh_part.dataset_->GetCellData();
+
+    points_ = dataset_->GetPoints();
+    point_data_ = dataset_->GetPointData();
+    num_cells_ = dataset_->GetNumberOfCells();
+    cell_data_ = dataset_->GetCellData();
     int num_arrays;
     // 读取点数据数组
-    num_arrays = mesh_part.point_data_->GetNumberOfArrays();
-    mesh_part.point_fields_.reserve(num_arrays);
+    num_arrays = point_data_->GetNumberOfArrays();
+    point_fields_.reserve(num_arrays);
     for (int i = 0; i < num_arrays; ++i)
     {
-        vtkDataArray* data_array = mesh_part.point_data_->GetArray(i);
-        Field field;
+        vtkDataArray* data_array = point_data_->GetArray(i);
+        FieldData field;
         field.name_ = data_array->GetName();
         field.location_ = Location::POINT;
         // field.type_ = Type::SCALAR; // 简化处理，假设为标量
         field.num_components_ = data_array->GetNumberOfComponents();
-        if( field.num_components_ == 1 )
+        if (field.num_components_ == 1)
             field.type_ = Type::SCALAR;
-        else if( field.num_components_ == 3 )
+        else if (field.num_components_ == 3)
             field.type_ = Type::VECTOR;
-        else if( field.num_components_ == 9 )
+        else if (field.num_components_ == 9)
             field.type_ = Type::TENSOR;
         else
             field.type_ = Type::OTHER;
         field.num_tuples_ = data_array->GetNumberOfTuples();
         field.pdata_ = data_array;
-        mesh_part.point_fields_.push_back(field);
+        point_fields_.push_back(field);
     }
 
     // 读取单元数据数组
-    num_arrays = mesh_part.cell_data_->GetNumberOfArrays();
-    mesh_part.cell_fields_.reserve(num_arrays);
+    num_arrays = cell_data_->GetNumberOfArrays();
+    cell_fields_.reserve(num_arrays);
     for (int i = 0; i < num_arrays; ++i)
     {
-        vtkDataArray* data_array = mesh_part.cell_data_->GetArray(i);
-        Field field;
+        vtkDataArray* data_array = cell_data_->GetArray(i);
+        FieldData field;
         field.name_ = data_array->GetName();
         field.location_ = Location::CELL;
         // field.type_ = Type::SCALAR; // 简化处理，假设为标量
         field.num_components_ = data_array->GetNumberOfComponents();
-        if( field.num_components_ == 1 )
+        if (field.num_components_ == 1)
             field.type_ = Type::SCALAR;
-        else if( field.num_components_ == 3 )
+        else if (field.num_components_ == 3)
             field.type_ = Type::VECTOR;
-        else if( field.num_components_ == 9 )
+        else if (field.num_components_ == 9)
             field.type_ = Type::TENSOR;
         else
             field.type_ = Type::OTHER;
         field.num_tuples_ = data_array->GetNumberOfTuples();
         field.pdata_ = data_array;
-        mesh_part.cell_fields_.push_back(field);
+        cell_fields_.push_back(field);
     }
-    
+
+    MeshPart mesh_part;
+    mesh_part.name_ = filename_;
+    // 1-提取顶点坐标
+    mesh_part.vertices_.reserve(points_->GetNumberOfPoints() * 3);
+    for (vtkIdType i = 0; i < points_->GetNumberOfPoints(); ++i)
+    {
+        double p[3];
+        points_->GetPoint(i, p);
+        mesh_part.vertices_.push_back(static_cast<float>(p[0]));
+        mesh_part.vertices_.push_back(static_cast<float>(p[1]));
+        mesh_part.vertices_.push_back(static_cast<float>(p[2]));
+    }
+    // 2-提取点数据
+    for (const auto& field : point_fields_)
+    {
+        Field f;
+        f.name_ = field.name_;
+        f.location_ = field.location_;
+        f.type_ = field.type_;
+        f.num_components_ = field.num_components_;
+        f.num_tuples_ = field.num_tuples_;
+        f.data.reserve(f.num_tuples_ * f.num_components_);
+        for (vtkIdType i = 0; i < field.num_tuples_; ++i)
+        {
+            for (int j = 0; j < field.num_components_; ++j)
+            {
+                double val = field.pdata_->GetComponent(i, j);
+                f.data.push_back(static_cast<float>(val));
+            }
+        }
+        mesh_part.point_fields_.push_back(std::move(f));
+    }
+    // 3-提取单元数据
+    for (const auto& field : cell_fields_)
+    {
+        Field f;
+        f.name_ = field.name_;
+        f.location_ = field.location_;
+        f.type_ = field.type_;
+        f.num_components_ = field.num_components_;
+        f.num_tuples_ = field.num_tuples_;
+        f.data.reserve(f.num_tuples_ * f.num_components_);
+        for (vtkIdType i = 0; i < field.num_tuples_; ++i)
+        {
+            for (int j = 0; j < field.num_components_; ++j)
+            {
+                double val = field.pdata_->GetComponent(i, j);
+                f.data.push_back(static_cast<float>(val));
+            }
+        }
+        mesh_part.cell_fields_.push_back(std::move(f));
+    }
+    // 4-从单元提取所有面
+    mesh_part.faces_.reserve(num_cells_ * 6); // 粗略估计每个单元平均6个面
+    for(vtkIdType cell_id = 0; cell_id < num_cells_; ++cell_id)
+    {
+        vtkCell* cell = dataset_->GetCell(cell_id);
+        int cell_type = cell->GetCellType();
+        vtkIdList* point_ids = cell->GetPointIds();
+        vtkIdType num_points = point_ids->GetNumberOfIds();
+        #define IDX(k) static_cast<uint32_t>(point_ids->GetId(k))
+        Face face;
+        switch (cell_type)
+        {
+            case VTK_TRIANGLE:
+                face.set3(IDX(0), IDX(1), IDX(2));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                break;
+
+            case VTK_QUAD:
+                face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                break;
+            case VTK_TETRA:
+                face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                break;
+            case VTK_HEXAHEDRON:
+                face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(4), IDX(5), IDX(6), IDX(7));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(0), IDX(1), IDX(5), IDX(4));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(1), IDX(2), IDX(6), IDX(5));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(2), IDX(3), IDX(7), IDX(6));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(3), IDX(0), IDX(4), IDX(7));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                break;
+           case VTK_WEDGE:
+                face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(3), IDX(4), IDX(5), IDX(6));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(0), IDX(1), IDX(4), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(1), IDX(2), IDX(5), IDX(4));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set4(IDX(2), IDX(0), IDX(3), IDX(5));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                break;
+            case VTK_PYRAMID:
+                face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set3(IDX(0), IDX(1), IDX(4));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set3(IDX(1), IDX(2), IDX(4));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set3(IDX(2), IDX(3), IDX(4));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set3(IDX(3), IDX(0), IDX(4));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                break;
+            default:
+                // 对于不支持的单元类型，可以选择跳过或抛出异常
+                std::cerr << "Unsupported cell type: " << cell_type << " for cell ID: " << cell_id << std::endl;
+                break;
+        }
+        #undef IDX
+    }
     return mesh_part;
 }
