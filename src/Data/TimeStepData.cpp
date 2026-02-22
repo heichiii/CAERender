@@ -1,13 +1,15 @@
 #include "TimeStepData.h"
 #include <execution>
 #include <cmath>
+#include "TestTool/Profiler.h"
 void TimeStepData::generateGPUData()
 {
+    PROFILE_CODE
     gpu_data_.surface_vertices_.clear();
-    gpu_data_.scalar_fields_.clear();
+    // gpu_data_.scalar_fields_.clear();
     gpu_data_.normals_.clear();
     gpu_data_.indices_.clear();
-//TODO:表面提取、法向计算、索引提取
+
     //表面提取
     std::sort(std::execution::par_unseq, parts_[0].faces_.begin(), parts_[0].faces_.end()); //TODO:openMP std::execution对比
     std::vector<const Face*> boundary_faces;

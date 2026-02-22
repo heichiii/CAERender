@@ -5,6 +5,7 @@
 #include <QOpenGLVertexArrayObject>
 #include <QOpenGLBuffer>
 #include "Data/GPUData.h"
+#include "ShaderProgram.h"
 
 class Renderer : public QOpenGLFunctions_4_5_Core
 {
@@ -13,14 +14,18 @@ public:
     ~Renderer() override = default;
 
     void initialize();
-    void render(const CaseData& caseData);
+    void render();
+    void setMesh(const GPUData* p_gpu_data);
 
 private:
 
     // GPUData gpu_data_;
     QOpenGLVertexArrayObject vao_;
     QOpenGLBuffer vbo_;
-    QOpenGLBuffer ebo_;
     QOpenGLBuffer normal_;
-    QOpenGLBuffer scalar_fields_;
+    // QOpenGLBuffer scalar_fields_;
+    QOpenGLBuffer ebo_;
+
+    const GPUData  * gpu_data_;
+    std::unique_ptr<ShaderProgram> shader_program_;
 };

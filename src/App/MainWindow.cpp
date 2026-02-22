@@ -31,19 +31,8 @@ void MainWindow::openFile()
         return;
     }
 
-    // auto loader = LoaderFactory::createLoader(filename.toStdString());
-    // if (!loader)
-    // {
-    //     qWarning() << "[MainWindow::openFile] :  Unsupported file format:" << filename;
-    //     return;
-    // }
-
-    // glWidget_->renderer_.case_data_.timeSteps_[0].parts_[0] = loader->load();
     glWidget_->loadFile(filename.toStdString());
-    // qInfo() << "[MainWindow::openFile] :  Loaded mesh part with"
-    //         << meshPart.getVertices().size() << "vertices and"
-    //         << meshPart.getFaces().size() << "faces.";
-    qInfo("Done.");
+
 }
 void MainWindow::openDirectory()
 {
@@ -54,12 +43,7 @@ void MainWindow::openDirectory()
 void MainWindow::test_openFile(const QString& filename)
 {
     PROFILE_CODE
-    auto loader = LoaderFactory::createLoader(filename.toStdString());
-    if (!loader)
-    {
-        qWarning() << "[MainWindow::openFile] :  Unsupported file format:" << filename;
-        return;
-    }
 
-    MeshPart meshPart = loader->load();
+    glWidget_->loadFile(filename.toStdString());
+    
 }
