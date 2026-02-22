@@ -8,10 +8,18 @@
 #include "TestTool/Profiler.h"
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
-    setWindowTitle("Hello, Qt!");
+    setWindowTitle("CAE Renderer");
     resize(1200, 800);
+    setupUI();
     setupMenus();
 }
+
+void MainWindow::setupUI()
+{
+    glWidget_ = new GLWidget(this);
+    setCentralWidget(glWidget_);
+}
+
 void MainWindow::setupMenus()
 {
     QMenu* fileMenu = menuBar()->addMenu("&File");

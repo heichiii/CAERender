@@ -20,8 +20,8 @@ class Field
 {
 public:
     std::string name_;
-    Location location_;
-    Type type_;
+    Location location_=Location::POINT;
+    Type type_=Type::SCALAR;
     int num_components_;
     int num_tuples_;
     std::vector<float> data;

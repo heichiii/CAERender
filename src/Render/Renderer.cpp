@@ -1,11 +1,21 @@
 #include "Renderer.h"
+#include <QDebug>
+#include <QDir>
+Renderer::Renderer():
+    gpu_data_(nullptr),
+    vbo_(QOpenGLBuffer::VertexBuffer),
+    normal_(QOpenGLBuffer::VertexBuffer),
+    ebo_(QOpenGLBuffer::IndexBuffer)
+{
+}
 
 void Renderer::initialize()
 {
     initializeOpenGLFunctions();
 
     shader_program_ = std::make_unique<ShaderProgram>();
-    if (!shader_program_->createFromFiles("src/Shader/basic.vert", "src/Shader/basic.frag"))
+    qInfo() << "Current working directory:" << QDir::currentPath();
+    if (!shader_program_->createFromFiles("../src/Shader/basic.vert", "../src/Shader/basic.frag"))
     {
         qWarning() << "Failed to create shader program";
     }

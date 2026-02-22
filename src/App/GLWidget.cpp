@@ -1,5 +1,9 @@
 #include "GLWidget.h"
 #include "Loader/LoaderFactory.h"
+
+GLWidget::GLWidget(QWidget* parent): QOpenGLWidget(parent)
+{
+}
 void GLWidget::loadFile(const std::string& filename)
 {
     auto loader = LoaderFactory::createLoader(filename);
@@ -10,13 +14,13 @@ void GLWidget::loadFile(const std::string& filename)
     }
 
     case_data_.steps_.clear();
-    TimeStepData timeStep;
-    timeStep.time_ = -1; // 单文件
-    timeStep.parts_.push_back(loader->load());
-    timeStep.generateGPUData();
-    case_data_.steps_.push_back(std::move(timeStep));
-    // setMesh(&case_data_.steps_[0].gpu_data_); // 设置网格数据
-    // update(); // 触发重绘
+    TimeStepData time_step;
+    time_step.time_ = -1; // 单文件
+    time_step.parts_.push_back(loader->load());
+    time_step.generateGPUData();
+    case_data_.steps_.push_back(std::move(time_step));
+    setMesh(&case_data_.steps_[0].gpu_data_); // 设置网格数据
+    update(); // 触发重绘
 }
 
 void GLWidget::setMesh(const GPUData* p_gpu_data)
