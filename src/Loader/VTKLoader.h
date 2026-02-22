@@ -3,6 +3,10 @@
 #include <string>
 #include <vtkDataArray.h>
 #include <vtkSmartPointer.h>
+#include <vtkDataSet.h>
+#include <vtkCellData.h>
+#include <vtkPointData.h>
+
 namespace VTK
 {
     // enum class Location

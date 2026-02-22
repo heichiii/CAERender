@@ -1,13 +1,10 @@
 #pragma once
 
 #include "Field.h"
+#include "Face.h"
 #include <string>
 #include <vector>
-#include <vtkDataSet.h>
-#include <vtkSmartPointer.h>
-#include <vtkCellData.h>
-#include <vtkPointData.h>
-#include "Face.h"
+
 class MeshPart
 {
 public:
@@ -17,5 +14,4 @@ public:
     std::vector<Field> point_fields_; // 点上物理量集合
     std::vector<Field> cell_fields_;  // 单元上物理量集合
     std::vector<Face> faces_; // 面集合（可选，根据需要提取）
-    
 };

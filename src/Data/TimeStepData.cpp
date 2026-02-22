@@ -33,8 +33,8 @@ void TimeStepData::generateGPUData()
 
     //表面提取
     std::sort(std::execution::par_unseq, parts_[0].faces_.begin(), parts_[0].faces_.end()); // TODO:openMP std::execution对比
-    std::vector<const Face*> boundary_faces;
-    boundary_faces.reserve(parts_[0].faces_.size());
+    std::vector<size_t> boundary_face_indices;
+    boundary_face_indices.reserve(parts_[0].faces_.size());
     for (size_t i = 0; i < parts_[0].faces_.size(); ++i)
     {
         const uint8_t nv = parts_[0].faces_[i].num_vertices;
@@ -45,7 +45,7 @@ void TimeStepData::generateGPUData()
         }
         if (i == 0 || !(parts_[0].faces_[i] == parts_[0].faces_[i - 1]))
         {
-            boundary_faces.push_back(&parts_[0].faces_[i]);
+            boundary_face_indices.push_back(i);
         }
     }
     // 生成flat shading顶点
@@ -92,11 +92,12 @@ void TimeStepData::generateGPUData()
         gpu_data_.indices_.insert(gpu_data_.indices_.end(), { vertex_index, vertex_index + 1, vertex_index + 2 });
         vertex_index += 3;
     };
-    for (const auto& face : boundary_faces)
+    for (size_t idx : boundary_face_indices)
     {
-        for (size_t i = 1; i + 1 < face->num_vertices; ++i)
+        const Face& face = parts_[0].faces_[idx];
+        for (size_t i = 1; i + 1 < face.num_vertices; ++i)
         {
-            emitTriangle(*face, 0, static_cast<uint32_t>(i), static_cast<uint32_t>(i + 1));
+            emitTriangle(face, 0, static_cast<uint32_t>(i), static_cast<uint32_t>(i + 1));
         }
     }
 

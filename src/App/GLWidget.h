@@ -1,6 +1,7 @@
 #pragma once
 
 #include <QOpenGLWidget>
+#include "Data/CaseData.h"
 #include "Render/Renderer.h"
 class GLWidget: public QOpenGLWidget
 {

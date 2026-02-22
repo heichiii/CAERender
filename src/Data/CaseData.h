@@ -8,5 +8,5 @@
 class CaseData
 {
 public:
-    std::vector<TimeStepData> timeSteps_; // 时间步集合
+    std::vector<TimeStepData> steps_; // 时间步集合
 };
