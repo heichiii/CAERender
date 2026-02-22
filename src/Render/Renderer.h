@@ -17,7 +17,7 @@ public:
 
 private:
 
-    GPUData gpu_data_;
+    // GPUData gpu_data_;
     QOpenGLVertexArrayObject vao_;
     QOpenGLBuffer vbo_;
     QOpenGLBuffer ebo_;

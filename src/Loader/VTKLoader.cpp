@@ -203,6 +203,7 @@ MeshPart VTK::VTKLoader::load()
         mesh_part.cell_fields_.push_back(std::move(f));
     }
     // 4-从单元提取所有面
+    // TODO:面提取VTK API
     mesh_part.faces_.reserve(num_cells_ * 6); // 粗略估计每个单元平均6个面
     for(vtkIdType cell_id = 0; cell_id < num_cells_; ++cell_id)
     {
