@@ -97,7 +97,15 @@ MeshPart VTK::VTKLoader::load()
         }
     }
 
+    if (!dataset_)
+    {
+        throw std::runtime_error("Failed to read VTK dataset: " + filename_);
+    }
     points_ = dataset_->GetPoints();
+    if (!points_)
+    {
+        throw std::runtime_error("Failed to read VTK points: " + filename_);
+    }
     point_data_ = dataset_->GetPointData();
     num_cells_ = dataset_->GetNumberOfCells();
     cell_data_ = dataset_->GetCellData();
@@ -211,27 +219,57 @@ MeshPart VTK::VTKLoader::load()
         int cell_type = cell->GetCellType();
         vtkIdList* point_ids = cell->GetPointIds();
         vtkIdType num_points = point_ids->GetNumberOfIds();
+#if 1
+        auto requirePoints = [&](vtkIdType required, const char* type_name)
+        {
+            if (num_points < required)
+            {
+                std::cerr << "Unsupported cell (too few points): " << type_name
+                          << " points=" << num_points
+                          << " cell ID: " << cell_id << std::endl;
+                return false;
+            }
+            return true;
+        };
+#endif
         #define IDX(k) static_cast<uint32_t>(point_ids->GetId(k))
         Face face;
         switch (cell_type)
         {
             case VTK_TRIANGLE:
+                if (!requirePoints(3, "VTK_TRIANGLE"))
+                    break;
                 face.set3(IDX(0), IDX(1), IDX(2));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
                 break;
 
             case VTK_QUAD:
+                if (!requirePoints(4, "VTK_QUAD"))
+                    break;
                 face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
                 break;
             case VTK_TETRA:
-                face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
+                if (!requirePoints(4, "VTK_TETRA"))
+                    break;
+                face.set3(IDX(0), IDX(1), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set3(IDX(0), IDX(2), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set3(IDX(1), IDX(2), IDX(3));
+                face.cell_id = static_cast<uint32_t>(cell_id);
+                mesh_part.faces_.push_back(face);
+                face.set3(IDX(0), IDX(1), IDX(2));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
                 break;
             case VTK_HEXAHEDRON:
+                if (!requirePoints(8, "VTK_HEXAHEDRON"))
+                    break;
                 face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
@@ -251,11 +289,13 @@ MeshPart VTK::VTKLoader::load()
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
                 break;
-           case VTK_WEDGE:
-                face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
+         case VTK_WEDGE:
+             if (!requirePoints(6, "VTK_WEDGE"))
+                break;
+                face.set3(IDX(0), IDX(1), IDX(2));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
-                face.set4(IDX(3), IDX(4), IDX(5), IDX(6));
+                face.set3(IDX(3), IDX(4), IDX(5));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
                 face.set4(IDX(0), IDX(1), IDX(4), IDX(3));
@@ -269,6 +309,8 @@ MeshPart VTK::VTKLoader::load()
                 mesh_part.faces_.push_back(face);
                 break;
             case VTK_PYRAMID:
+                if (!requirePoints(5, "VTK_PYRAMID"))
+                    break;
                 face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);

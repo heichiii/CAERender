@@ -14,7 +14,7 @@ void GLWidget::loadFile(const std::string& filename)
     timeStep.time_ = -1; // 单文件
     timeStep.parts_.push_back(loader->load());
     timeStep.generateGPUData();
-    // case_data_.timeSteps_.push_back(std::move(timeStep));
+    case_data_.timeSteps_.push_back(std::move(timeStep));
     // setMesh(&case_data_.timeSteps_[0].gpu_data_); // 设置网格数据
     // update(); // 触发重绘
 }
