@@ -89,7 +89,7 @@ void TimeStepData::generateGPUData()
             normal[2] /= length;
         }
         gpu_data_.normals_.insert(gpu_data_.normals_.end(), { normal[0], normal[1], normal[2], normal[0], normal[1], normal[2], normal[0], normal[1], normal[2] });
-        gpu_data_.indices_.insert(gpu_data_.indices_.end(), { vertex_index, vertex_index + 1, vertex_index + 2 });
+        gpu_data_.indices_.insert(gpu_data_.indices_.end(), { static_cast<uint32_t>(vertex_index), static_cast<uint32_t>(vertex_index + 1), static_cast<uint32_t>(vertex_index + 2) });
         vertex_index += 3;
     };
     for (size_t idx : boundary_face_indices)

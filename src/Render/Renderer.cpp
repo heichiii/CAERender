@@ -29,6 +29,10 @@ void Renderer::render()
         return; // 没有数据可渲染
     }
 
+    // 清空颜色和深度缓冲区
+    glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
+    glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
+
     shader_program_->bind();
 
     QMatrix4x4 model;
@@ -36,18 +40,18 @@ void Renderer::render()
 
     QMatrix4x4 view;
     view.setToIdentity();
-    view.translate(0.0f, 0.0f, -5.0f); // 简单的视图变换
+    view.translate(0.0f, 0.0f, -50.0f); // 增加距离让模型更清楚
     QMatrix4x4 projection;
     projection.setToIdentity();
-    projection.perspective(45.0f, 1.0f, 0.1f, 100.0f); // 简单的投影变换
+    projection.perspective(45.0f, 1.33f, 0.1f, 100.0f); // 投影变换
     
     shader_program_->getProgram()->setUniformValue("u_model", model);
     shader_program_->getProgram()->setUniformValue("u_view", view);
     shader_program_->getProgram()->setUniformValue("u_projection", projection);
 
-    shader_program_->getProgram()->setUniformValue("u_light_pos", QVector3D(0.0f, 0.0f, 5.0f));
-    shader_program_->getProgram()->setUniformValue("u_view_pos", QVector3D(0.0f, 0.0f, 5.0f));
-    shader_program_->getProgram()->setUniformValue("u_object_color", QVector3D(1.0f, 1.0f, 1.0f));
+    shader_program_->getProgram()->setUniformValue("u_light_pos", QVector3D(5.0f, 5.0f, 15.0f));
+    shader_program_->getProgram()->setUniformValue("u_view_pos", QVector3D(0.0f, 0.0f, 10.0f));
+    shader_program_->getProgram()->setUniformValue("u_object_color", QVector3D(0.8f, 0.8f, 0.9f));
 
 
 
@@ -101,7 +105,7 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
     //ebo
     ebo_.create();
     ebo_.bind();
-    ebo_.allocate(gpu_data_->indices_.data(), static_cast<int>(gpu_data_->indices_.size() * sizeof(size_t)));
+    ebo_.allocate(gpu_data_->indices_.data(), static_cast<int>(gpu_data_->indices_.size() * sizeof(uint32_t)));
 
 
     vao_.release();
