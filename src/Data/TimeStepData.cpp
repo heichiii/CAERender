@@ -31,7 +31,7 @@ void TimeStepData::generateGPUData()
     gpu_data_.normals_.clear();
     gpu_data_.indices_.clear();
 
-    //表面提取
+    //表面提取：提取只出现一次的边界面
     std::sort(std::execution::par_unseq, parts_[0].faces_.begin(), parts_[0].faces_.end()); // TODO:openMP std::execution对比
     std::vector<size_t> boundary_face_indices;
     boundary_face_indices.reserve(parts_[0].faces_.size());
@@ -43,7 +43,16 @@ void TimeStepData::generateGPUData()
             std::cerr << "[TimeStepData::generateGPUData] Invalid face vertex count." << std::endl;
             continue;
         }
-        if (i == 0 || !(parts_[0].faces_[i] == parts_[0].faces_[i - 1]))
+        // 检查这个面是否是边界面（只出现一次）
+        bool is_boundary = true;
+        // 检查前一个面
+        if (i > 0 && parts_[0].faces_[i] == parts_[0].faces_[i - 1])
+            is_boundary = false;
+        // 检查后一个面
+        if (i + 1 < parts_[0].faces_.size() && parts_[0].faces_[i] == parts_[0].faces_[i + 1])
+            is_boundary = false;
+        
+        if (is_boundary)
         {
             boundary_face_indices.push_back(i);
         }
