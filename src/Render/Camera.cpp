@@ -31,27 +31,27 @@ const QMatrix4x4 Camera::getProjectionMatrix() const
 void Camera::rotate(float delta_phi, float delta_theta)
 {
     phi_ += delta_phi;
-    theta_ += delta_theta;
+    theta_ -= delta_theta;
     updatePosition();
 }
 
 void Camera::zoom(float delta)
 {
-    distance_to_target_ += delta;
+    distance_to_target_ -= delta;
     updatePosition();
 }
 
 void Camera::pan(float delta_x, float delta_y)
 {
-    QVector3D right = QVector3D::crossProduct(target_ - position_, up_).normalized();
-    QVector3D up = QVector3D::crossProduct(right, target_ - position_).normalized();
+    QVector3D right = QVector3D::crossProduct(position_ - target_, up_).normalized();
+    QVector3D up = QVector3D::crossProduct(right, position_ - target_).normalized();
     position_ += right * delta_x + up * delta_y;
     target_ += right * delta_x + up * delta_y;
 }
 
 void Camera::reset()
 {
-    position_ = QVector3D(0.0f, 0.0f, 5.0f);
+    position_ = QVector3D(0.0f, 0.0f, 10.0f);
     target_ = QVector3D(0.0f, 0.0f, 0.0f);
     up_ = QVector3D(0.0f, 1.0f, 0.0f);
     fov_ = 45.0f;

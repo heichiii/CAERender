@@ -68,9 +68,9 @@ void GLWidget::mousePressEvent(QMouseEvent* event)
     last_mouse_pos_ = event->pos();
     if (event->button() == Qt::LeftButton)
         is_rotating_ = true;
-    else if (event->button() == Qt::RightButton)
-        is_panning_ = true;
     else if (event->button() == Qt::MiddleButton)
+        is_panning_ = true;
+    else if (event->button() == Qt::RightButton)
         is_zooming_ = true;
 }
 
@@ -82,7 +82,7 @@ void GLWidget::mouseMoveEvent(QMouseEvent* event)
     if (is_rotating_)
         camera_.rotate(delta.x(), delta.y());
     else if (is_panning_)
-        camera_.pan(delta.x() * 0.01f, -delta.y() * 0.01f);
+        camera_.pan(delta.x() * 0.01f, delta.y() * 0.01f);
     else if (is_zooming_)
         camera_.zoom(delta.y() * 0.1f);
 
