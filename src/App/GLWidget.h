@@ -30,8 +30,11 @@ private:
 
 
     QPoint last_mouse_pos_;
+    QPoint mouse_press_pos_;  // 鼠标按下位置
     bool is_rotating_ = false;
     bool is_panning_ = false;
     bool is_zooming_ = false;
 
+    // 计算屏幕中心作为旋转中心
+    QVector3D getScreenCenterInWorld() const;
 };

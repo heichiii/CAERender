@@ -36,15 +36,8 @@ void Renderer::render(const Camera& camera)
 
     shader_program_->bind();
 
-    QMatrix4x4 model;
-    model.setToIdentity();
-
-    // QMatrix4x4 view;
-    // view.setToIdentity();
-    // view.translate(0.0f, 0.0f, -50.0f); // 增加距离让模型更清楚
-    // QMatrix4x4 projection;
-    // projection.setToIdentity();
-    // projection.perspective(45.0f, 1.33f, 0.1f, 100.0f); // 投影变换
+    // 使用Camera提供的模型矩阵
+    QMatrix4x4 model = camera.getModelMatrix();
     QMatrix4x4 view = camera.getViewMatrix();
     QMatrix4x4 projection = camera.getProjectionMatrix();
     

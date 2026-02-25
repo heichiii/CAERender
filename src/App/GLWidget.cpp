@@ -50,6 +50,9 @@ void GLWidget::initializeGL()
         qInfo() << "OpenGL Version:" << reinterpret_cast<const char*>(version);
     }
     renderer_.initialize();
+    
+    // 初始化旋转中心为原点
+    camera_.updateRotationCenter(QVector3D(0.0f, 0.0f, 0.0f));
 }
 
 void GLWidget::paintGL()
@@ -60,18 +63,44 @@ void GLWidget::paintGL()
 void GLWidget::resizeGL(int w, int h)
 {
     glViewport(0, 0, w, h);
+}
 
+QVector3D GLWidget::getScreenCenterInWorld() const
+{
+    // 简化版本：屏幕中心映射到世界坐标（此处使用物体原点）
+    // 在实际应用中，可以进行光线投射来获取3D场景中的精确位置
+    return QVector3D(0.0f, 0.0f, 0.0f);
 }
 
 void GLWidget::mousePressEvent(QMouseEvent* event)
 {
     last_mouse_pos_ = event->pos();
+    mouse_press_pos_ = event->pos();  // 记录按下位置
+    
     if (event->button() == Qt::LeftButton)
+    {
         is_rotating_ = true;
+        // 每次按下鼠标时更新旋转中心
+        camera_.updateRotationCenter(getScreenCenterInWorld());
+        qDebug() << "Rotation center updated at: " 
+                 << camera_.getRotationCenter().x() << ","
+                 << camera_.getRotationCenter().y() << ","
+                 << camera_.getRotationCenter().z();
+    }
     else if (event->button() == Qt::MiddleButton)
+    {
         is_panning_ = true;
+    }
     else if (event->button() == Qt::RightButton)
+    {
         is_zooming_ = true;
+        // 每次按下右键时更新缩放中心
+        camera_.updateRotationCenter(getScreenCenterInWorld());
+        qDebug() << "Zoom center updated at: " 
+                 << camera_.getRotationCenter().x() << ","
+                 << camera_.getRotationCenter().y() << ","
+                 << camera_.getRotationCenter().z();
+    }
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent* event)
@@ -80,11 +109,18 @@ void GLWidget::mouseMoveEvent(QMouseEvent* event)
     last_mouse_pos_ = event->pos();
 
     if (is_rotating_)
-        camera_.rotate(delta.x(), delta.y());
+    {
+        // 使用四元数旋转
+        camera_.applyRotationDelta(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
+    }
     else if (is_panning_)
-        camera_.pan(delta.x() * 0.01f, delta.y() * 0.01f);
+    {
+        camera_.pan(delta.x() * 0.005f, delta.y() * 0.005f);
+    }
     else if (is_zooming_)
+    {
         camera_.zoom(delta.y() * 0.1f);
+    }
 
     update();
 }
@@ -92,15 +128,23 @@ void GLWidget::mouseMoveEvent(QMouseEvent* event)
 void GLWidget::mouseReleaseEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
+    {
         is_rotating_ = false;
+    }
     else if (event->button() == Qt::RightButton)
+    {
         is_panning_ = false;
+    }
     else if (event->button() == Qt::MiddleButton)
+    {
         is_zooming_ = false;
+    }
 }
 
 void GLWidget::wheelEvent(QWheelEvent* event)
 {
+    // 每次滚轮时更新缩放中心
+    camera_.updateRotationCenter(getScreenCenterInWorld());
     camera_.zoom(event->angleDelta().y() * 0.01f);
     update();
 }
