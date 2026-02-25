@@ -14,7 +14,7 @@ public:
         // 简单根据文件扩展名选择加载器
         if (endsWith(filename, ".vtk") || endsWith(filename, ".vtu") || endsWith(filename, ".vtp"))
         {
-            return std::make_unique<VTKLoader>(filename);
+            return std::make_unique<VTK::VTKLoader>(filename);
         }
         // 可以添加更多格式的支持
         return nullptr; // 不支持的格式

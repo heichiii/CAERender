@@ -8,11 +8,12 @@ class MainWindow : public QMainWindow
 {
     Q_OBJECT
 public:
-    MainWindow(QWidget* parent = nullptr);
+    explicit MainWindow(QWidget* parent = nullptr);
     ~MainWindow() override= default;
     void test_openFile(const QString& filename);
 private:
 
+    void setupUI();
     void setupMenus();
 
     GLWidget* glWidget_;

@@ -1,8 +1,8 @@
 #pragma once
 
 #include <string>
-#include <vtkDataArray.h>
-#include <vtkSmartPointer.h>
+#include <vector>
+
 
 enum class Location
 {
@@ -20,9 +20,16 @@ class Field
 {
 public:
     std::string name_;
-    Location location_;
-    Type type_;
+    Location location_=Location::POINT;
+    Type type_=Type::SCALAR;
     int num_components_;
-    vtkIdType num_tuples_;
-    vtkSmartPointer<vtkDataArray> pdata_; // 实际数据指针
+    int num_tuples_;
+    std::vector<float> data;
+    
+    // 统计信息
+    float min_value;
+    float max_value;
+    
+    void computeRange();
+
 };
