@@ -188,7 +188,16 @@ MeshPart VTK::VTKLoader::load()
                 f.data.push_back(static_cast<float>(val));
             }
         }
+        if(f.type_ == Type::SCALAR)
+        {
+            f.computeRange();
+        }
+        qInfo() << "Loaded point field: " << QString::fromStdString(f.name_)
+                << " components: " << f.num_components_
+                << " tuples: " << f.num_tuples_
+                << " range: [" << f.min_value << ", " << f.max_value << "]";
         mesh_part.point_fields_.push_back(std::move(f));
+        
     }
     // 3-提取单元数据
     for (const auto& field : cell_fields_)
@@ -208,6 +217,14 @@ MeshPart VTK::VTKLoader::load()
                 f.data.push_back(static_cast<float>(val));
             }
         }
+        if(f.type_ == Type::SCALAR)
+        {
+            f.computeRange();
+        }
+         qInfo() << "Loaded cell field: " << QString::fromStdString(f.name_)
+                << " components: " << f.num_components_
+                << " tuples: " << f.num_tuples_
+                << " range: [" << f.min_value << ", " << f.max_value << "]";
         mesh_part.cell_fields_.push_back(std::move(f));
     }
     // 4-从单元提取所有面

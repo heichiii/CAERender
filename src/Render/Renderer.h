@@ -24,7 +24,7 @@ private:
     QOpenGLVertexArrayObject vao_;
     QOpenGLBuffer vbo_;
     QOpenGLBuffer normal_;
-    // QOpenGLBuffer scalar_fields_;
+    QOpenGLBuffer scalar_fields_;
     QOpenGLBuffer ebo_;
 
     const GPUData  * gpu_data_;

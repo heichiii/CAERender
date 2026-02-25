@@ -49,6 +49,9 @@ void Renderer::render(const Camera& camera)
     shader_program_->getProgram()->setUniformValue("u_view_pos", QVector3D(0.0f, 0.0f, 10.0f));
     shader_program_->getProgram()->setUniformValue("u_object_color", QVector3D(0.8f, 0.8f, 0.9f));
 
+    shader_program_->getProgram()->setUniformValue("u_scalar_min", gpu_data_->scalar_min_);
+    shader_program_->getProgram()->setUniformValue("u_scalar_max", gpu_data_->scalar_max_);
+
 
 
 
@@ -98,6 +101,12 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
     normal_.allocate(gpu_data_->normals_.data(), static_cast<int>(gpu_data_->normals_.size() * sizeof(float)));
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    //scalar fields
+    scalar_fields_.create();
+    scalar_fields_.bind();
+    scalar_fields_.allocate(gpu_data_->scalar_fields_.data(), static_cast<int>(gpu_data_->scalar_fields_.size() * sizeof(float)));
+    glEnableVertexAttribArray(2);
+    glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), nullptr);
     //ebo
     ebo_.create();
     ebo_.bind();

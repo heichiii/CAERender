@@ -27,7 +27,7 @@ void TimeStepData::generateGPUData()
         return;
     }
     gpu_data_.surface_vertices_.clear();
-    // gpu_data_.scalar_fields_.clear();
+    gpu_data_.scalar_fields_.clear();
     gpu_data_.normals_.clear();
     gpu_data_.indices_.clear();
 
@@ -68,6 +68,10 @@ void TimeStepData::generateGPUData()
     gpu_data_.surface_vertices_.reserve(num_triangles * 9); // 每个三角形3个顶点，每个顶点3个坐标
     gpu_data_.normals_.reserve(num_triangles * 9); // 每个三角形3个顶点，每个顶点3个坐标
     gpu_data_.indices_.reserve(num_triangles * 3); // 每个三角形3个顶点索引
+    // if(parts_[0].active_field_ && parts_[0].active_field_->type_ == Type::SCALAR)
+    // {
+    //     gpu_data_.scalar_fields_.reserve(num_triangles * 3); // 每个三角形3个顶点，每个顶点1个标量值
+    // }
 
     size_t vertex_index = 0;
     auto emitTriangle = [&](const Face& face, uint32_t i0, uint32_t i1, uint32_t i2)
@@ -99,6 +103,14 @@ void TimeStepData::generateGPUData()
         }
         gpu_data_.normals_.insert(gpu_data_.normals_.end(), { normal[0], normal[1], normal[2], normal[0], normal[1], normal[2], normal[0], normal[1], normal[2] });
         gpu_data_.indices_.insert(gpu_data_.indices_.end(), { static_cast<uint32_t>(vertex_index), static_cast<uint32_t>(vertex_index + 1), static_cast<uint32_t>(vertex_index + 2) });
+        
+        parts_[0].vertex_to_point_map_.push_back(face.original[i0]);
+        parts_[0].vertex_to_point_map_.push_back(face.original[i1]);
+        parts_[0].vertex_to_point_map_.push_back(face.original[i2]);
+        parts_[0].vertex_to_cell_map_.push_back(face.cell_id);
+        parts_[0].vertex_to_cell_map_.push_back(face.cell_id);
+        parts_[0].vertex_to_cell_map_.push_back(face.cell_id);
+
         vertex_index += 3;
     };
     for (size_t idx : boundary_face_indices)
@@ -112,3 +124,64 @@ void TimeStepData::generateGPUData()
 
 
 }
+
+void TimeStepData::activateField(const std::string& field_name)
+{    for (auto& part : parts_)
+    {
+        for (const auto& field : part.point_fields_)
+        {
+            if (field.name_ == field_name)
+            {
+                part.active_field_ = &field;
+                updateScalarBuffer(); // 激活新字段后更新GPU缓冲区
+                gpu_data_.scalar_min_ = field.min_value;
+                gpu_data_.scalar_max_ = field.max_value;
+                return;
+            }
+        }
+        for (const auto& field : part.cell_fields_)
+        {
+            if (field.name_ == field_name)
+            {
+                part.active_field_ = &field;
+                updateScalarBuffer(); // 激活新字段后更新GPU缓冲区
+                gpu_data_.scalar_min_ = field.min_value;
+                gpu_data_.scalar_max_ = field.max_value;
+                return;
+            }
+        }
+    }
+    std::cerr << "[TimeStepData::activateField] Field not found: " << field_name << std::endl;
+}
+
+void TimeStepData::updateScalarBuffer()
+{
+    if (parts_.empty() || !parts_[0].active_field_)
+    {
+        std::cerr << "[TimeStepData::updateScalarBuffer] No active field to update." << std::endl;
+        return;
+    }
+    const Field* active_field = parts_[0].active_field_;
+    if (active_field->type_ != Type::SCALAR)
+    {
+        std::cerr << "[TimeStepData::updateScalarBuffer] Active field is not scalar." << std::endl;
+        return;
+    }
+    gpu_data_.scalar_fields_.clear();
+    gpu_data_.scalar_fields_.resize(parts_[0].vertex_to_point_map_.size());
+    for (size_t vertex_idx = 0; vertex_idx < parts_[0].vertex_to_point_map_.size(); ++vertex_idx)
+    {
+        size_t point_idx = parts_[0].vertex_to_point_map_[vertex_idx];
+        if (point_idx < active_field->num_tuples_)
+        {
+            gpu_data_.scalar_fields_[vertex_idx] = active_field->data[point_idx * active_field->num_components_]; // 只取第一个分量
+        }
+        else
+        {
+            gpu_data_.scalar_fields_[vertex_idx] = 0.0f; // 超出范围的点赋值为0
+            std::cerr << "[TimeStepData::updateScalarBuffer] Point index out of range: " << point_idx << std::endl;
+        }
+    }
+}
+
+
