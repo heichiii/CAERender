@@ -42,10 +42,53 @@ void GLWidget::initializeGL()
 
 void GLWidget::paintGL()
 {
-    renderer_.render();
+    renderer_.render(camera_);
 }
 
 void GLWidget::resizeGL(int w, int h)
 {
     glViewport(0, 0, w, h);
+
+}
+
+void GLWidget::mousePressEvent(QMouseEvent* event)
+{
+    last_mouse_pos_ = event->pos();
+    if (event->button() == Qt::LeftButton)
+        is_rotating_ = true;
+    else if (event->button() == Qt::RightButton)
+        is_panning_ = true;
+    else if (event->button() == Qt::MiddleButton)
+        is_zooming_ = true;
+}
+
+void GLWidget::mouseMoveEvent(QMouseEvent* event)
+{
+    QPoint delta = event->pos() - last_mouse_pos_;
+    last_mouse_pos_ = event->pos();
+
+    if (is_rotating_)
+        camera_.rotate(delta.x(), delta.y());
+    else if (is_panning_)
+        camera_.pan(delta.x() * 0.01f, -delta.y() * 0.01f);
+    else if (is_zooming_)
+        camera_.zoom(delta.y() * 0.1f);
+
+    update();
+}
+
+void GLWidget::mouseReleaseEvent(QMouseEvent* event)
+{
+    if (event->button() == Qt::LeftButton)
+        is_rotating_ = false;
+    else if (event->button() == Qt::RightButton)
+        is_panning_ = false;
+    else if (event->button() == Qt::MiddleButton)
+        is_zooming_ = false;
+}
+
+void GLWidget::wheelEvent(QWheelEvent* event)
+{
+    camera_.zoom(event->angleDelta().y() * 0.01f);
+    update();
 }

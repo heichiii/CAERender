@@ -6,6 +6,7 @@
 #include <QOpenGLBuffer>
 #include "Data/GPUData.h"
 #include "ShaderProgram.h"
+#include "Camera.h"
 
 class Renderer : public QOpenGLFunctions_4_5_Core
 {
@@ -14,7 +15,7 @@ public:
     ~Renderer() override = default;
 
     void initialize();
-    void render();
+    void render(const Camera& camera);
     void setMesh(const GPUData* p_gpu_data);
 
 private:

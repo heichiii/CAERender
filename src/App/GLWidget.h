@@ -1,8 +1,11 @@
 #pragma once
 
 #include <QOpenGLWidget>
+#include <QMouseEvent>
+#include <QWheelEvent>
 #include "Data/CaseData.h"
 #include "Render/Renderer.h"
+#include "Render/Camera.h"
 class GLWidget: public QOpenGLWidget
 {
 public:
@@ -16,6 +19,19 @@ private:
     void resizeGL(int w, int h) override;
     void paintGL() override;
 
+    void mousePressEvent(QMouseEvent* event) override;
+    void mouseMoveEvent(QMouseEvent* event) override;
+    void mouseReleaseEvent(QMouseEvent* event) override;
+    void wheelEvent(QWheelEvent* event) override;
+
     CaseData case_data_;
     Renderer renderer_;
+    Camera camera_;
+
+
+    QPoint last_mouse_pos_;
+    bool is_rotating_ = false;
+    bool is_panning_ = false;
+    bool is_zooming_ = false;
+
 };

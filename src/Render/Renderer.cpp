@@ -22,7 +22,7 @@ void Renderer::initialize()
     glEnable(GL_DEPTH_TEST);
 }
 
-void Renderer::render()
+void Renderer::render(const Camera& camera)
 {
     if (!gpu_data_)
     {
@@ -38,12 +38,14 @@ void Renderer::render()
     QMatrix4x4 model;
     model.setToIdentity();
 
-    QMatrix4x4 view;
-    view.setToIdentity();
-    view.translate(0.0f, 0.0f, -50.0f); // 增加距离让模型更清楚
-    QMatrix4x4 projection;
-    projection.setToIdentity();
-    projection.perspective(45.0f, 1.33f, 0.1f, 100.0f); // 投影变换
+    // QMatrix4x4 view;
+    // view.setToIdentity();
+    // view.translate(0.0f, 0.0f, -50.0f); // 增加距离让模型更清楚
+    // QMatrix4x4 projection;
+    // projection.setToIdentity();
+    // projection.perspective(45.0f, 1.33f, 0.1f, 100.0f); // 投影变换
+    QMatrix4x4 view = camera.getViewMatrix();
+    QMatrix4x4 projection = camera.getProjectionMatrix();
     
     shader_program_->getProgram()->setUniformValue("u_model", model);
     shader_program_->getProgram()->setUniformValue("u_view", view);
@@ -67,7 +69,7 @@ void Renderer::render()
 
 void Renderer::setMesh(const GPUData* p_gpu_data)
 {
-    //TODO
+    //TODO:添加更多buffer
     if (!p_gpu_data)
     {
         qWarning() << "Invalid GPU data pointer";
