@@ -1,5 +1,7 @@
 #include "GLWidget.h"
 #include "Loader/LoaderFactory.h"
+#include <QOpenGLContext>
+#include <QOpenGLFunctions>
 
 GLWidget::GLWidget(QWidget* parent): QOpenGLWidget(parent)
 {
@@ -37,6 +39,16 @@ void GLWidget::setMesh(const GPUData* p_gpu_data)
 
 void GLWidget::initializeGL()
 {
+    if (auto* context = QOpenGLContext::currentContext())
+    {
+        auto* funcs = context->functions();
+        const GLubyte* vendor = funcs->glGetString(GL_VENDOR);
+        const GLubyte* renderer = funcs->glGetString(GL_RENDERER);
+        const GLubyte* version = funcs->glGetString(GL_VERSION);
+        qInfo() << "OpenGL Vendor:" << reinterpret_cast<const char*>(vendor);
+        qInfo() << "OpenGL Renderer:" << reinterpret_cast<const char*>(renderer);
+        qInfo() << "OpenGL Version:" << reinterpret_cast<const char*>(version);
+    }
     renderer_.initialize();
 }
 
