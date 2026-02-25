@@ -13,14 +13,16 @@ uniform vec3 u_object_color;
 
 void main()
 {
+    // 双面光照：处理背面法线方向
+    vec3 norm = gl_FrontFacing ? normalize(v_normal) : -normalize(v_normal);
+    
     // Ambient
     float ambient_strength = 0.2;
     vec3 ambient = ambient_strength * u_object_color;
     
     // Diffuse
-    vec3 norm = normalize(v_normal);
     vec3 light_dir = normalize(u_light_pos - v_frag_pos);
-    float diff = max(dot(norm, light_dir), 0.0);
+    float diff = max(abs(dot(norm, light_dir)), 0.0);  // 使用abs确保背面也有光照
     vec3 diffuse = diff * u_object_color;
     
     // Specular

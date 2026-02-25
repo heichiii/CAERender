@@ -20,6 +20,7 @@ void Renderer::initialize()
         qWarning() << "Failed to create shader program";
     }
     glEnable(GL_DEPTH_TEST);
+    glDisable(GL_CULL_FACE);  // 开启双面光照，禁用背面剔除
 }
 
 void Renderer::render(const Camera& camera)
