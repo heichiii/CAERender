@@ -151,3 +151,40 @@ void GLWidget::wheelEvent(QWheelEvent* event)
     camera_.zoom(event->angleDelta().y() * 0.01f);
     update();
 }
+
+void GLWidget::setMeshRenderMode(MeshRenderMode mode)
+{
+    makeCurrent();
+    renderer_.setMeshRenderMode(mode);
+    update();
+}
+
+void GLWidget::setColorScheme(ColorScheme scheme)
+{
+    makeCurrent();
+    renderer_.setColorScheme(scheme);
+    update();
+}
+
+void GLWidget::setUseFieldColoring(bool use)
+{
+    makeCurrent();
+    renderer_.setUseFieldColoring(use);
+    update();
+}
+
+void GLWidget::activateField(const std::string& field_name)
+{
+    if (case_data_.steps_.empty())
+    {
+        qWarning() << "No data loaded, cannot activate field";
+        return;
+    }
+    
+    qInfo() << "Activating field:" << QString::fromStdString(field_name);
+    makeCurrent();
+    case_data_.steps_[0].activateField(field_name);
+    
+    // 重新设置网格数据以更新标量缓冲区
+    setMesh(&case_data_.steps_[0].gpu_data_);
+}

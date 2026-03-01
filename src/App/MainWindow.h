@@ -50,8 +50,7 @@ private slots:
     void openFile();
     void openDirectory();
     void onFieldSelectionChanged(int index);
-    // void onMeshRenderModeChanged(int index);
-    // void onColorSchemeChanged(int index);
-    // void onVectorRenderModeChanged(int index);
+    void onMeshRenderModeChanged(int index);
+    void onColorSchemeChanged(int index);
 
 };

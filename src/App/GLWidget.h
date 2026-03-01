@@ -13,7 +13,13 @@ public:
     ~GLWidget() override= default;
     void loadFile(const std::string& filename);
     void setMesh(const GPUData* p_gpu_data);
-    const CaseData* getCaseData() const { return &case_data_; }
+    CaseData* getCaseData()  { return &case_data_; }
+    
+    // 渲染控制接口
+    void setMeshRenderMode(MeshRenderMode mode);
+    void setColorScheme(ColorScheme scheme);
+    void setUseFieldColoring(bool use);
+    void activateField(const std::string& field_name);
 
 private:
     void initializeGL() override;

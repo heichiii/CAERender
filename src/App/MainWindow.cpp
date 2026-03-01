@@ -98,6 +98,14 @@ void MainWindow::setupUI()
     // 连接信号
     connect(field_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onFieldSelectionChanged);
+    
+    // 连接基础网格渲染模式
+    connect(mesh_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onMeshRenderModeChanged);
+    
+    // 连接配色方案
+    connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onColorSchemeChanged);
 
     // 创建 Properties Dock
     properties_dock_ = new QDockWidget("Properties", this);
@@ -284,11 +292,15 @@ void MainWindow::onFieldSelectionChanged(int index)
     
     if (index == 0) // "无"选项
     {
+        gl_widget_->activateField("无");
+        gl_widget_->setUseFieldColoring(false);
         return;
     }
     
+    
     // 获取选中的场量
     QString field_name = field_combo_->currentText();
+
     const CaseData* case_data = gl_widget_->getCaseData();
     if (!case_data || case_data->steps_.empty())
     {
@@ -331,13 +343,20 @@ void MainWindow::onFieldSelectionChanged(int index)
     // 根据场量类型显示相应选项
     if (field_type == Type::SCALAR)
     {
+        // 标量场：激活场量并启用场量着色
+        gl_widget_->activateField(field_name.toStdString());
+        gl_widget_->setUseFieldColoring(true);
         color_scheme_label_->show();
         color_scheme_combo_->show();
     }
     else if (field_type == Type::VECTOR)
     {
+        // 矢量场：暂时关闭基础着色，显示矢量渲染选项
+        gl_widget_->setUseFieldColoring(false);
         vector_render_mode_label_->show();
         vector_render_mode_combo_->show();
+        
+        // TODO: 矢量场渲染
     }
 }
 
@@ -401,4 +420,16 @@ void MainWindow::updateFieldOptions()
 {
     // 当场量列表更新时，更新场量选项
     onFieldSelectionChanged(field_combo_->currentIndex());
+}
+
+void MainWindow::onMeshRenderModeChanged(int index)
+{
+    MeshRenderMode mode = static_cast<MeshRenderMode>(index);
+    gl_widget_->setMeshRenderMode(mode);
+}
+
+void MainWindow::onColorSchemeChanged(int index)
+{
+    ColorScheme scheme = static_cast<ColorScheme>(index);
+    gl_widget_->setColorScheme(scheme);
 }

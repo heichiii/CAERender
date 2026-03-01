@@ -5,7 +5,10 @@ Renderer::Renderer():
     gpu_data_(nullptr),
     vbo_(QOpenGLBuffer::VertexBuffer),
     normal_(QOpenGLBuffer::VertexBuffer),
-    ebo_(QOpenGLBuffer::IndexBuffer)
+    ebo_(QOpenGLBuffer::IndexBuffer),
+    mesh_render_mode_(MeshRenderMode::SOLID),
+    color_scheme_(ColorScheme::RAINBOW),
+    use_field_coloring_(false)
 {
 }
 
@@ -51,13 +54,34 @@ void Renderer::render(const Camera& camera)
 
     shader_program_->getProgram()->setUniformValue("u_scalar_min", gpu_data_->scalar_min_);
     shader_program_->getProgram()->setUniformValue("u_scalar_max", gpu_data_->scalar_max_);
-
-
-
+    
+    // 设置渲染参数
+    shader_program_->getProgram()->setUniformValue("u_color_scheme", static_cast<int>(color_scheme_));
+    shader_program_->getProgram()->setUniformValue("u_use_field_coloring", use_field_coloring_);
+    shader_program_->getProgram()->setUniformValue("u_point_size", 3.0f); // 点云大小
 
     vao_.bind();
 
-    glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(gpu_data_->indices_.size()), GL_UNSIGNED_INT, nullptr);
+    // 根据渲染模式选择不同的绘制方式
+    switch (mesh_render_mode_)
+    {
+        case MeshRenderMode::SOLID:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(gpu_data_->indices_.size()), GL_UNSIGNED_INT, nullptr);
+            break;
+            
+        case MeshRenderMode::POINT_CLOUD:
+            glEnable(GL_PROGRAM_POINT_SIZE); // 启用着色器控制的点大小
+            glDrawElements(GL_POINTS, static_cast<GLsizei>(gpu_data_->indices_.size()), GL_UNSIGNED_INT, nullptr);
+            glDisable(GL_PROGRAM_POINT_SIZE);
+            break;
+            
+        case MeshRenderMode::WIREFRAME:
+            glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(gpu_data_->indices_.size()), GL_UNSIGNED_INT, nullptr);
+            glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // 恢复默认
+            break;
+    }
 
     vao_.release();
     shader_program_->release();
@@ -81,6 +105,14 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
     if (vbo_.isCreated())
     {
         vbo_.destroy();
+    }
+    if (normal_.isCreated())
+    {
+        normal_.destroy();
+    }
+    if (scalar_fields_.isCreated())
+    {
+        scalar_fields_.destroy();
     }
     if (ebo_.isCreated())
     {
@@ -107,10 +139,14 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
     std::vector<float> default_scalar(gpu_data_->surface_vertices_.size() / 3, 0.0f);
     if (gpu_data_->scalar_fields_.empty())
     {
+        qDebug() << "Warning: scalar_fields_ is empty, using default values";
         scalar_fields_.allocate(default_scalar.data(), static_cast<int>(default_scalar.size() * sizeof(float)));
     }
     else
     {
+        qDebug() << "scalar_fields_ size:" << gpu_data_->scalar_fields_.size() 
+                 << "min:" << gpu_data_->scalar_min_ 
+                 << "max:" << gpu_data_->scalar_max_;
         scalar_fields_.allocate(gpu_data_->scalar_fields_.data(), static_cast<int>(gpu_data_->scalar_fields_.size() * sizeof(float)));
     }
     glEnableVertexAttribArray(2);
@@ -124,4 +160,19 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
     vao_.release();
 
 
+}
+
+void Renderer::setMeshRenderMode(MeshRenderMode mode)
+{
+    mesh_render_mode_ = mode;
+}
+
+void Renderer::setColorScheme(ColorScheme scheme)
+{
+    color_scheme_ = scheme;
+}
+
+void Renderer::setUseFieldColoring(bool use)
+{
+    use_field_coloring_ = use;
 }

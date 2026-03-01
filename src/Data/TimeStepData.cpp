@@ -203,19 +203,49 @@ void TimeStepData::updateScalarBuffer()
     }
     gpu_data_.scalar_fields_.clear();
     gpu_data_.scalar_fields_.resize(parts_[0].vertex_to_point_map_.size());
-    for (size_t vertex_idx = 0; vertex_idx < parts_[0].vertex_to_point_map_.size(); ++vertex_idx)
+    
+    std::cout << "[TimeStepData::updateScalarBuffer] Updating " << gpu_data_.scalar_fields_.size() 
+              << " scalar values from field: " << active_field->name_
+              << " (location: " << (active_field->location_ == Location::POINT ? "POINT" : "CELL")
+              << ", min: " << active_field->min_value << ", max: " << active_field->max_value << ")" << std::endl;
+    
+    // 根据场量位置选择不同的映射
+    if (active_field->location_ == Location::POINT)
     {
-        size_t point_idx = parts_[0].vertex_to_point_map_[vertex_idx];
-        if (point_idx < active_field->num_tuples_)
+        // 点场：使用vertex_to_point_map_
+        for (size_t vertex_idx = 0; vertex_idx < parts_[0].vertex_to_point_map_.size(); ++vertex_idx)
         {
-            gpu_data_.scalar_fields_[vertex_idx] =
-                active_field->data[point_idx * active_field->num_components_]; // 只取第一个分量
+            size_t point_idx = parts_[0].vertex_to_point_map_[vertex_idx];
+            if (point_idx < active_field->num_tuples_)
+            {
+                gpu_data_.scalar_fields_[vertex_idx] =
+                    active_field->data[point_idx * active_field->num_components_];
+            }
+            else
+            {
+                gpu_data_.scalar_fields_[vertex_idx] = 0.0f;
+                std::cerr << "[TimeStepData::updateScalarBuffer] Point index out of range: "
+                          << point_idx << std::endl;
+            }
         }
-        else
+    }
+    else if (active_field->location_ == Location::CELL)
+    {
+        // 单元场：使用vertex_to_cell_map_
+        for (size_t vertex_idx = 0; vertex_idx < parts_[0].vertex_to_cell_map_.size(); ++vertex_idx)
         {
-            gpu_data_.scalar_fields_[vertex_idx] = 0.0f; // 超出范围的点赋值为0
-            std::cerr << "[TimeStepData::updateScalarBuffer] Point index out of range: "
-                      << point_idx << std::endl;
+            size_t cell_idx = parts_[0].vertex_to_cell_map_[vertex_idx];
+            if (cell_idx < active_field->num_tuples_)
+            {
+                gpu_data_.scalar_fields_[vertex_idx] =
+                    active_field->data[cell_idx * active_field->num_components_];
+            }
+            else
+            {
+                gpu_data_.scalar_fields_[vertex_idx] = 0.0f;
+                std::cerr << "[TimeStepData::updateScalarBuffer] Cell index out of range: "
+                          << cell_idx << std::endl;
+            }
         }
     }
 }

@@ -7,6 +7,7 @@ layout(location = 2) in float a_scalar_fields;
 uniform mat4 u_model;
 uniform mat4 u_view;
 uniform mat4 u_projection;
+uniform float u_point_size; // 点云渲染的点大小
 
 out vec3 v_frag_pos;
 out vec3 v_normal;
@@ -17,6 +18,7 @@ void main()
     v_frag_pos = vec3(u_model * vec4(a_pos, 1.0));
     v_normal = normalize(mat3(transpose(inverse(u_model))) * a_normal);
     v_scalar_fields = a_scalar_fields; // 直接使用标量值
-        
+    
+    gl_PointSize = u_point_size; // 设置点大小
     gl_Position = u_projection * u_view * vec4(v_frag_pos, 1.0);
 }
