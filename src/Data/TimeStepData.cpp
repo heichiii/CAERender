@@ -1,8 +1,11 @@
 #include "TimeStepData.h"
-#include <execution>
-#include <cmath>
-#include <iostream>
 #include "TestTool/Profiler.h"
+#include <cmath>
+#ifdef emit
+#undef emit
+#endif
+#include <execution>
+#include <iostream>
 void TimeStepData::generateGPUData()
 {
     PROFILE_CODE
@@ -31,8 +34,9 @@ void TimeStepData::generateGPUData()
     gpu_data_.normals_.clear();
     gpu_data_.indices_.clear();
 
-    //表面提取：提取只出现一次的边界面
-    std::sort(std::execution::par_unseq, parts_[0].faces_.begin(), parts_[0].faces_.end()); // TODO:openMP std::execution对比
+    // 表面提取：提取只出现一次的边界面
+    std::sort(std::execution::par_unseq, parts_[0].faces_.begin(),
+              parts_[0].faces_.end()); // TODO:openMP std::execution对比
     std::vector<size_t> boundary_face_indices;
     boundary_face_indices.reserve(parts_[0].faces_.size());
     for (size_t i = 0; i < parts_[0].faces_.size(); ++i)
@@ -51,7 +55,7 @@ void TimeStepData::generateGPUData()
         // 检查后一个面
         if (i + 1 < parts_[0].faces_.size() && parts_[0].faces_[i] == parts_[0].faces_[i + 1])
             is_boundary = false;
-        
+
         if (is_boundary)
         {
             boundary_face_indices.push_back(i);
@@ -66,11 +70,12 @@ void TimeStepData::generateGPUData()
         num_triangles += static_cast<size_t>(face.num_vertices - 2); // 三角形数量
     }
     gpu_data_.surface_vertices_.reserve(num_triangles * 9); // 每个三角形3个顶点，每个顶点3个坐标
-    gpu_data_.normals_.reserve(num_triangles * 9); // 每个三角形3个顶点，每个顶点3个坐标
-    gpu_data_.indices_.reserve(num_triangles * 3); // 每个三角形3个顶点索引
+    gpu_data_.normals_.reserve(num_triangles * 9);          // 每个三角形3个顶点，每个顶点3个坐标
+    gpu_data_.indices_.reserve(num_triangles * 3);          // 每个三角形3个顶点索引
     // if(parts_[0].active_field_ && parts_[0].active_field_->type_ == Type::SCALAR)
     // {
-    //     gpu_data_.scalar_fields_.reserve(num_triangles * 3); // 每个三角形3个顶点，每个顶点1个标量值
+    //     gpu_data_.scalar_fields_.reserve(num_triangles * 3); //
+    //     每个三角形3个顶点，每个顶点1个标量值
     // }
 
     size_t vertex_index = 0;
@@ -79,31 +84,50 @@ void TimeStepData::generateGPUData()
         const size_t vcount = parts_[0].vertices_.size() / 3;
         if (i0 >= face.num_vertices || i1 >= face.num_vertices || i2 >= face.num_vertices)
         {
-            std::cerr << "[TimeStepData::generateGPUData] Triangle index out of face range." << std::endl;
+            std::cerr << "[TimeStepData::generateGPUData] Triangle index out of face range."
+                      << std::endl;
             return;
         }
-        if (face.original[i0] >= vcount || face.original[i1] >= vcount || face.original[i2] >= vcount)
+        if (face.original[i0] >= vcount || face.original[i1] >= vcount ||
+            face.original[i2] >= vcount)
         {
             std::cerr << "[TimeStepData::generateGPUData] Face index out of range." << std::endl;
             return;
         }
-        float v0[3] = { parts_[0].vertices_[face.original[i0] * 3], parts_[0].vertices_[face.original[i0] * 3 + 1], parts_[0].vertices_[face.original[i0] * 3 + 2] };
-        float v1[3] = { parts_[0].vertices_[face.original[i1] * 3], parts_[0].vertices_[face.original[i1] * 3 + 1], parts_[0].vertices_[face.original[i1] * 3 + 2] };
-        float v2[3] = { parts_[0].vertices_[face.original[i2] * 3], parts_[0].vertices_[face.original[i2] * 3 + 1], parts_[0].vertices_[face.original[i2] * 3 + 2] };
-        gpu_data_.surface_vertices_.insert(gpu_data_.surface_vertices_.end(), { v0[0], v0[1], v0[2], v1[0], v1[1], v1[2], v2[0], v2[1], v2[2] });
+        float v0[3] = {parts_[0].vertices_[face.original[i0] * 3],
+                       parts_[0].vertices_[face.original[i0] * 3 + 1],
+                       parts_[0].vertices_[face.original[i0] * 3 + 2]};
+        float v1[3] = {parts_[0].vertices_[face.original[i1] * 3],
+                       parts_[0].vertices_[face.original[i1] * 3 + 1],
+                       parts_[0].vertices_[face.original[i1] * 3 + 2]};
+        float v2[3] = {parts_[0].vertices_[face.original[i2] * 3],
+                       parts_[0].vertices_[face.original[i2] * 3 + 1],
+                       parts_[0].vertices_[face.original[i2] * 3 + 2]};
+        gpu_data_.surface_vertices_.insert(
+            gpu_data_.surface_vertices_.end(),
+            {v0[0], v0[1], v0[2], v1[0], v1[1], v1[2], v2[0], v2[1], v2[2]});
         // 计算法线
-        float edge1[3] = { v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2] };
-        float edge2[3] = { v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2] };
-        float normal[3] = { edge1[1] * edge2[2] - edge1[2] * edge2[1], edge1[2] * edge2[0] - edge1[0] * edge2[2], edge1[0] * edge2[1] - edge1[1] * edge2[0] };
-        float length = std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
-        if (length > 1e-6f)        {
+        float edge1[3] = {v1[0] - v0[0], v1[1] - v0[1], v1[2] - v0[2]};
+        float edge2[3] = {v2[0] - v0[0], v2[1] - v0[1], v2[2] - v0[2]};
+        float normal[3] = {edge1[1] * edge2[2] - edge1[2] * edge2[1],
+                           edge1[2] * edge2[0] - edge1[0] * edge2[2],
+                           edge1[0] * edge2[1] - edge1[1] * edge2[0]};
+        float length =
+            std::sqrt(normal[0] * normal[0] + normal[1] * normal[1] + normal[2] * normal[2]);
+        if (length > 1e-6f)
+        {
             normal[0] /= length;
             normal[1] /= length;
             normal[2] /= length;
         }
-        gpu_data_.normals_.insert(gpu_data_.normals_.end(), { normal[0], normal[1], normal[2], normal[0], normal[1], normal[2], normal[0], normal[1], normal[2] });
-        gpu_data_.indices_.insert(gpu_data_.indices_.end(), { static_cast<uint32_t>(vertex_index), static_cast<uint32_t>(vertex_index + 1), static_cast<uint32_t>(vertex_index + 2) });
-        
+        gpu_data_.normals_.insert(gpu_data_.normals_.end(),
+                                  {normal[0], normal[1], normal[2], normal[0], normal[1], normal[2],
+                                   normal[0], normal[1], normal[2]});
+        gpu_data_.indices_.insert(gpu_data_.indices_.end(),
+                                  {static_cast<uint32_t>(vertex_index),
+                                   static_cast<uint32_t>(vertex_index + 1),
+                                   static_cast<uint32_t>(vertex_index + 2)});
+
         parts_[0].vertex_to_point_map_.push_back(face.original[i0]);
         parts_[0].vertex_to_point_map_.push_back(face.original[i1]);
         parts_[0].vertex_to_point_map_.push_back(face.original[i2]);
@@ -121,12 +145,22 @@ void TimeStepData::generateGPUData()
             emitTriangle(face, 0, static_cast<uint32_t>(i), static_cast<uint32_t>(i + 1));
         }
     }
-
-
 }
 
 void TimeStepData::activateField(const std::string& field_name)
-{    for (auto& part : parts_)
+{
+    if(field_name == "无")
+    {
+        for (auto& part : parts_)
+        {
+            part.active_field_ = nullptr;
+        }
+        gpu_data_.scalar_fields_.clear();
+        gpu_data_.scalar_min_ = 0.0f;
+        gpu_data_.scalar_max_ = 1.0f;
+        return;
+    }
+    for (auto& part : parts_)
     {
         for (const auto& field : part.point_fields_)
         {
@@ -174,14 +208,14 @@ void TimeStepData::updateScalarBuffer()
         size_t point_idx = parts_[0].vertex_to_point_map_[vertex_idx];
         if (point_idx < active_field->num_tuples_)
         {
-            gpu_data_.scalar_fields_[vertex_idx] = active_field->data[point_idx * active_field->num_components_]; // 只取第一个分量
+            gpu_data_.scalar_fields_[vertex_idx] =
+                active_field->data[point_idx * active_field->num_components_]; // 只取第一个分量
         }
         else
         {
             gpu_data_.scalar_fields_[vertex_idx] = 0.0f; // 超出范围的点赋值为0
-            std::cerr << "[TimeStepData::updateScalarBuffer] Point index out of range: " << point_idx << std::endl;
+            std::cerr << "[TimeStepData::updateScalarBuffer] Point index out of range: "
+                      << point_idx << std::endl;
         }
     }
 }
-
-

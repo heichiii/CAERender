@@ -104,7 +104,15 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
     //scalar fields
     scalar_fields_.create();
     scalar_fields_.bind();
-    scalar_fields_.allocate(gpu_data_->scalar_fields_.data(), static_cast<int>(gpu_data_->scalar_fields_.size() * sizeof(float)));
+    std::vector<float> default_scalar(gpu_data_->surface_vertices_.size() / 3, 0.0f);
+    if (gpu_data_->scalar_fields_.empty())
+    {
+        scalar_fields_.allocate(default_scalar.data(), static_cast<int>(default_scalar.size() * sizeof(float)));
+    }
+    else
+    {
+        scalar_fields_.allocate(gpu_data_->scalar_fields_.data(), static_cast<int>(gpu_data_->scalar_fields_.size() * sizeof(float)));
+    }
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), nullptr);
     //ebo

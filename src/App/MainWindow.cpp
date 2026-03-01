@@ -9,8 +9,12 @@
 #include <QSignalBlocker>
 #include <QWidgetAction>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QLabel>
 #include <QWidget>
+#include <QComboBox>
+#include <QGroupBox>
+#include <QSet>
 #include "Loader/LoaderFactory.h"
 #include "TestTool/Profiler.h"
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
@@ -25,10 +29,77 @@ void MainWindow::setupUI()
 {
     gl_widget_ = new GLWidget(this);
     setCentralWidget(gl_widget_);
+    
+    // 创建 Render Options Dock
     render_dock_ = new QDockWidget("Render Options", this);
     render_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    
+    // 创建 render_dock_ 的内容面板
+    auto* render_widget = new QWidget();
+    auto* render_layout = new QVBoxLayout(render_widget);
+    
+    // 基础网格渲染模式
+    auto* mesh_group = new QGroupBox("基础网格");
+    auto* mesh_layout = new QVBoxLayout();
+    mesh_render_mode_combo_ = new QComboBox();
+    mesh_render_mode_combo_->addItem("实体渲染");
+    mesh_render_mode_combo_->addItem("点云渲染");
+    mesh_render_mode_combo_->addItem("线框渲染");
+    mesh_layout->addWidget(mesh_render_mode_combo_);
+    mesh_group->setLayout(mesh_layout);
+    render_layout->addWidget(mesh_group);
+    
+    // 场量选择
+    auto* field_group = new QGroupBox("场量");
+    auto* field_layout = new QVBoxLayout();
+    field_combo_ = new QComboBox();
+    field_combo_->addItem("无");
+    field_layout->addWidget(field_combo_);
+    field_group->setLayout(field_layout);
+    render_layout->addWidget(field_group);
+    
+    // 场量选项（动态显示）
+    field_options_widget_ = new QWidget();
+    auto* options_layout = new QVBoxLayout(field_options_widget_);
+    options_layout->setContentsMargins(0, 0, 0, 0);
+    
+    // 配色方案（用于标量场）
+    color_scheme_label_ = new QLabel("配色方案:");
+    color_scheme_combo_ = new QComboBox();
+    color_scheme_combo_->addItem("彩虹");
+    color_scheme_combo_->addItem("热力图");
+    color_scheme_combo_->addItem("冷暖");
+    color_scheme_combo_->addItem("灰度");
+    color_scheme_combo_->addItem("蓝白红");
+    options_layout->addWidget(color_scheme_label_);
+    options_layout->addWidget(color_scheme_combo_);
+    
+    // 矢量渲染模式（用于矢量场）
+    vector_render_mode_label_ = new QLabel("渲染模式:");
+    vector_render_mode_combo_ = new QComboBox();
+    vector_render_mode_combo_->addItem("箭头渲染");
+    vector_render_mode_combo_->addItem("流线生成");
+    options_layout->addWidget(vector_render_mode_label_);
+    options_layout->addWidget(vector_render_mode_combo_);
+    
+    // 默认隐藏所有场量选项
+    color_scheme_label_->hide();
+    color_scheme_combo_->hide();
+    vector_render_mode_label_->hide();
+    vector_render_mode_combo_->hide();
+    
+    render_layout->addWidget(field_options_widget_);
+    render_layout->addStretch();
+    
+    render_widget->setLayout(render_layout);
+    render_dock_->setWidget(render_widget);
     addDockWidget(Qt::LeftDockWidgetArea, render_dock_);
+    
+    // 连接信号
+    connect(field_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onFieldSelectionChanged);
 
+    // 创建 Properties Dock
     properties_dock_ = new QDockWidget("Properties", this);
     properties_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
     
@@ -116,6 +187,7 @@ void MainWindow::openFile()
     current_file_path_ = filename.toStdString();
     gl_widget_->loadFile(filename.toStdString());
     updatePropertiesPanel();
+    updateFieldList();
 }
 void MainWindow::updatePropertiesPanel()
 {
@@ -200,4 +272,133 @@ void MainWindow::updatePropertiesPanel()
 void MainWindow::openDirectory()
 {
     // TODO: open directory
+}
+
+void MainWindow::onFieldSelectionChanged(int index)
+{
+    // 隐藏所有场量选项
+    color_scheme_label_->hide();
+    color_scheme_combo_->hide();
+    vector_render_mode_label_->hide();
+    vector_render_mode_combo_->hide();
+    
+    if (index == 0) // "无"选项
+    {
+        return;
+    }
+    
+    // 获取选中的场量
+    QString field_name = field_combo_->currentText();
+    const CaseData* case_data = gl_widget_->getCaseData();
+    if (!case_data || case_data->steps_.empty())
+    {
+        return;
+    }
+    
+    const TimeStepData& time_step = case_data->steps_[0];
+    
+    // 查找场量类型
+    Type field_type = Type::OTHER;
+    for (const auto& part : time_step.parts_)
+    {
+        // 在点场中查找
+        for (const auto& field : part.point_fields_)
+        {
+            if (QString::fromStdString(field.name_) == field_name)
+            {
+                field_type = field.type_;
+                break;
+            }
+        }
+        
+        // 在单元场中查找
+        if (field_type == Type::OTHER)
+        {
+            for (const auto& field : part.cell_fields_)
+            {
+                if (QString::fromStdString(field.name_) == field_name)
+                {
+                    field_type = field.type_;
+                    break;
+                }
+            }
+        }
+        
+        if (field_type != Type::OTHER)
+            break;
+    }
+    
+    // 根据场量类型显示相应选项
+    if (field_type == Type::SCALAR)
+    {
+        color_scheme_label_->show();
+        color_scheme_combo_->show();
+    }
+    else if (field_type == Type::VECTOR)
+    {
+        vector_render_mode_label_->show();
+        vector_render_mode_combo_->show();
+    }
+}
+
+void MainWindow::updateFieldList()
+{
+    // 保存当前选择
+    QString current_selection = field_combo_->currentText();
+    
+    // 清空并重新填充场量列表
+    field_combo_->clear();
+    field_combo_->addItem("无");
+    
+    const CaseData* case_data = gl_widget_->getCaseData();
+    if (!case_data || case_data->steps_.empty())
+    {
+        return;
+    }
+    
+    const TimeStepData& time_step = case_data->steps_[0];
+    
+    // 收集所有场量名称（去重）
+    QSet<QString> field_names;
+    
+    for (const auto& part : time_step.parts_)
+    {
+        // 添加点场
+        for (const auto& field : part.point_fields_)
+        {
+            field_names.insert(QString::fromStdString(field.name_));
+        }
+        
+        // 添加单元场
+        for (const auto& field : part.cell_fields_)
+        {
+            field_names.insert(QString::fromStdString(field.name_));
+        }
+    }
+    
+    // 按字母顺序排序并添加到下拉框
+    QList<QString> sorted_names = field_names.values();
+    std::sort(sorted_names.begin(), sorted_names.end());
+    
+    for (const QString& name : sorted_names)
+    {
+        field_combo_->addItem(name);
+    }
+    
+    // 尝试恢复之前的选择
+    int index = field_combo_->findText(current_selection);
+    if (index >= 0)
+    {
+        field_combo_->setCurrentIndex(index);
+    }
+    else
+    {
+        field_combo_->setCurrentIndex(0); // 默认选择"无"
+    }
+}
+
+void MainWindow::updateFieldOptions()
+{
+    // 当场量列表更新时，更新场量选项
+    onFieldSelectionChanged(field_combo_->currentIndex());
 }
