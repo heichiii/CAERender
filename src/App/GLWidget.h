@@ -13,6 +13,7 @@ public:
     ~GLWidget() override= default;
     void loadFile(const std::string& filename);
     void setMesh(const GPUData* p_gpu_data);
+    const CaseData* getCaseData() const { return &case_data_; }
 
 private:
     void initializeGL() override;
