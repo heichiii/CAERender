@@ -20,6 +20,9 @@ public:
     void setColorScheme(ColorScheme scheme);
     void setUseFieldColoring(bool use);
     void activateField(const std::string& field_name);
+    void activateVectorField(const std::string& field_name);
+    void setVectorRenderMode(VectorRenderMode mode);
+    void setRenderingVector(bool render_vector);
 
 private:
     void initializeGL() override;

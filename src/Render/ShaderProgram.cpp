@@ -45,6 +45,39 @@ bool ShaderProgram::createFromFiles(const std::string& vertex_path, const std::s
     }
 }
 
+bool ShaderProgram::createFromFiles(const std::string& vertex_path, const std::string& fragment_path, const std::string& geometry_path)
+{
+    try
+    {
+        std::string vertex_source = readShaderFile(vertex_path);
+        std::string fragment_source = readShaderFile(fragment_path);
+        std::string geometry_source = readShaderFile(geometry_path);
+        
+        if (!program_->addShaderFromSourceCode(QOpenGLShader::Vertex, vertex_source.c_str()))
+        {
+            qDebug() << "Failed to compile vertex shader";
+            return false;
+        }
+        if (!program_->addShaderFromSourceCode(QOpenGLShader::Fragment, fragment_source.c_str()))
+        {
+            qDebug() << "Failed to compile fragment shader";
+            return false;
+        }
+        if (!program_->addShaderFromSourceCode(QOpenGLShader::Geometry, geometry_source.c_str()))
+        {
+            qDebug() << "Failed to compile geometry shader";
+            return false;
+        }
+        
+        return program_->link();
+    }
+    catch (const std::exception& e)
+    {
+        qDebug() << "Error creating shader program with geometry: " << e.what();
+        return false;
+    }
+}
+
 void ShaderProgram::bind()
 {
     program_->bind();

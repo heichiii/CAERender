@@ -14,5 +14,6 @@ public:
     void activateField(const std::string& field_name);
     void generateGPUData();
     void updateScalarBuffer();
+    void updateVectorBuffer(const std::string& field_name);
 
 };

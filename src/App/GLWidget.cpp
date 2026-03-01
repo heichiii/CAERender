@@ -188,3 +188,32 @@ void GLWidget::activateField(const std::string& field_name)
     // 重新设置网格数据以更新标量缓冲区
     setMesh(&case_data_.steps_[0].gpu_data_);
 }
+
+void GLWidget::activateVectorField(const std::string& field_name)
+{
+    if (case_data_.steps_.empty())
+    {
+        qWarning() << "No data loaded, cannot activate vector field";
+        return;
+    }
+    
+    qInfo() << "Activating vector field:" << QString::fromStdString(field_name);
+    makeCurrent();
+    case_data_.steps_[0].updateVectorBuffer(field_name);
+    renderer_.setRenderingVector(true);
+    update();
+}
+
+void GLWidget::setVectorRenderMode(VectorRenderMode mode)
+{
+    makeCurrent();
+    renderer_.setVectorRenderMode(mode);
+    update();
+}
+
+void GLWidget::setRenderingVector(bool render_vector)
+{
+    makeCurrent();
+    renderer_.setRenderingVector(render_vector);
+    update();
+}

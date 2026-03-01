@@ -106,6 +106,10 @@ void MainWindow::setupUI()
     // 连接配色方案
     connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
             this, &MainWindow::onColorSchemeChanged);
+    
+    // 连接矢量渲染模式
+    connect(vector_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
+            this, &MainWindow::onVectorRenderModeChanged);
 
     // 创建 Properties Dock
     properties_dock_ = new QDockWidget("Properties", this);
@@ -346,17 +350,17 @@ void MainWindow::onFieldSelectionChanged(int index)
         // 标量场：激活场量并启用场量着色
         gl_widget_->activateField(field_name.toStdString());
         gl_widget_->setUseFieldColoring(true);
+        gl_widget_->setRenderingVector(false);
         color_scheme_label_->show();
         color_scheme_combo_->show();
     }
     else if (field_type == Type::VECTOR)
     {
-        // 矢量场：暂时关闭基础着色，显示矢量渲染选项
-        gl_widget_->setUseFieldColoring(false);
+        // 矢量场：激活矢量字段渲染
+        gl_widget_->activateVectorField(field_name.toStdString());
+        gl_widget_->setRenderingVector(true);
         vector_render_mode_label_->show();
         vector_render_mode_combo_->show();
-        
-        // TODO: 矢量场渲染
     }
 }
 
@@ -432,4 +436,10 @@ void MainWindow::onColorSchemeChanged(int index)
 {
     ColorScheme scheme = static_cast<ColorScheme>(index);
     gl_widget_->setColorScheme(scheme);
+}
+
+void MainWindow::onVectorRenderModeChanged(int index)
+{
+    VectorRenderMode mode = static_cast<VectorRenderMode>(index);
+    gl_widget_->setVectorRenderMode(mode);
 }
