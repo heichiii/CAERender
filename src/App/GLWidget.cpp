@@ -20,7 +20,7 @@ void GLWidget::loadFile(const std::string& filename)
     time_step.time_ = -1; // 单文件
     time_step.parts_.push_back(loader->load());
     time_step.generateGPUData();
-    time_step.activateField("p");
+    time_step.activateField("POINT-p");
     case_data_.steps_.push_back(std::move(time_step));
     setMesh(&case_data_.steps_[0].gpu_data_); // 设置网格数据
 
@@ -65,6 +65,7 @@ void GLWidget::paintGL()
 void GLWidget::resizeGL(int w, int h)
 {
     glViewport(0, 0, w, h);
+    camera_.setAspectRatio(static_cast<float>(w) / static_cast<float>(h));
 }
 
 QVector3D GLWidget::getScreenCenterInWorld() const

@@ -4,6 +4,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QAction>
+#include <QDockWidget>
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -19,7 +20,7 @@ private:
     GLWidget* glWidget_;
     QAction* openFile_;
     QAction* openDir_;
-    
+    QDockWidget* dockWidget_;
 private slots:
     void openFile();
     void openDirectory();

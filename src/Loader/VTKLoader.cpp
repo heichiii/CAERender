@@ -117,7 +117,7 @@ MeshPart VTK::VTKLoader::load()
     {
         vtkDataArray* data_array = point_data_->GetArray(i);
         FieldData field;
-        field.name_ = data_array->GetName();
+        field.name_ = std::string("POINT-")+data_array->GetName();
         field.location_ = Location::POINT;
         // field.type_ = Type::SCALAR; // 简化处理，假设为标量
         field.num_components_ = data_array->GetNumberOfComponents();
@@ -141,9 +141,8 @@ MeshPart VTK::VTKLoader::load()
     {
         vtkDataArray* data_array = cell_data_->GetArray(i);
         FieldData field;
-        field.name_ = data_array->GetName();
+        field.name_ = std::string("CELL-")+data_array->GetName();
         field.location_ = Location::CELL;
-        // field.type_ = Type::SCALAR; // 简化处理，假设为标量
         field.num_components_ = data_array->GetNumberOfComponents();
         if (field.num_components_ == 1)
             field.type_ = Type::SCALAR;

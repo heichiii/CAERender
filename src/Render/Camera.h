@@ -7,7 +7,6 @@
 
 class Camera
 {
-//TODO:  摄像机类设计
 public:
     Camera();
     ~Camera() = default;
@@ -25,6 +24,9 @@ public:
     QVector3D getRotationCenter() const { return pivot_point_; }
     QQuaternion getRotationQuaternion() const { return object_rotation_; }
     QMatrix4x4 getModelMatrix() const { return model_matrix_; }
+
+    // 窗口大小改变时更新投影矩阵
+    void setAspectRatio(float aspect_ratio) { aspect_ratio_ = aspect_ratio; }
 
 private:
     void updatePosition();

@@ -16,8 +16,12 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 
 void MainWindow::setupUI()
 {
+    // TODO: 交互设计
     glWidget_ = new GLWidget(this);
     setCentralWidget(glWidget_);
+    dockWidget_ = new QDockWidget("Properties", this);
+    dockWidget_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    addDockWidget(Qt::RightDockWidgetArea, dockWidget_);
 }
 
 void MainWindow::setupMenus()
