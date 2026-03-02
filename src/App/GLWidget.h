@@ -8,6 +8,7 @@
 #include "Render/Camera.h"
 class GLWidget: public QOpenGLWidget
 {
+    Q_OBJECT
 public:
     explicit GLWidget(QWidget* parent = nullptr);
     ~GLWidget() override= default;
@@ -22,7 +23,7 @@ public:
     void activateField(const std::string& field_name);
     void activateVectorField(const std::string& field_name);
     void setVectorRenderMode(VectorRenderMode mode);
-    void setRenderingVector(bool render_vector);
+    void setRenderMode(Mode mode);
 
 private:
     void initializeGL() override;

@@ -148,9 +148,9 @@ void TimeStepData::generateGPUData()
     }
 }
 
-void TimeStepData::activateField(const std::string& field_name)
+Type TimeStepData::activateField(const std::string& field_name)
 {
-    if(field_name == "无")
+    if (field_name == "无")
     {
         for (auto& part : parts_)
         {
@@ -159,34 +159,45 @@ void TimeStepData::activateField(const std::string& field_name)
         gpu_data_.scalar_fields_.clear();
         gpu_data_.scalar_min_ = 0.0f;
         gpu_data_.scalar_max_ = 1.0f;
-        return;
+        return Type::NONE;
     }
-    for (auto& part : parts_)
+    auto& part = parts_[0];
+    Field* tmp = nullptr;
+    for (auto& field : part.point_fields_)
     {
-        for (const auto& field : part.point_fields_)
+        if (field.name_ == field_name)
         {
-            if (field.name_ == field_name)
-            {
-                part.active_field_ = &field;
-                updateScalarBuffer(); // 激活新字段后更新GPU缓冲区
-                gpu_data_.scalar_min_ = field.min_value;
-                gpu_data_.scalar_max_ = field.max_value;
-                return;
-            }
+            tmp = &field;
+            break;
         }
-        for (const auto& field : part.cell_fields_)
+    }
+    if (!tmp)
+    {
+        for (auto& field : part.cell_fields_)
         {
             if (field.name_ == field_name)
             {
-                part.active_field_ = &field;
-                updateScalarBuffer(); // 激活新字段后更新GPU缓冲区
-                gpu_data_.scalar_min_ = field.min_value;
-                gpu_data_.scalar_max_ = field.max_value;
-                return;
+                tmp = &field;
+                break;
             }
         }
     }
-    std::cerr << "[TimeStepData::activateField] Field not found: " << field_name << std::endl;
+    if(!tmp)
+    {
+        std::cerr << "[TimeStepData::activateField] Field not found: " << field_name << std::endl;
+        return Type::NONE;
+    }
+    part.active_field_ = tmp;
+    if(tmp->type_ == Type::SCALAR)
+    {
+        updateScalarBuffer(); // 激活新字段后更新GPU缓冲区
+    }
+    else if(tmp->type_ == Type::VECTOR)
+    {
+        updateVectorBuffer(); // 激活新字段后更新GPU缓冲区
+    }
+
+    return tmp->type_;
 }
 
 void TimeStepData::updateScalarBuffer()
@@ -202,19 +213,28 @@ void TimeStepData::updateScalarBuffer()
         std::cerr << "[TimeStepData::updateScalarBuffer] Active field is not scalar." << std::endl;
         return;
     }
+    gpu_data_.scalar_min_ = active_field->min_value;
+    gpu_data_.scalar_max_ = active_field->max_value;
     gpu_data_.scalar_fields_.clear();
-    gpu_data_.scalar_fields_.resize(parts_[0].vertex_to_point_map_.size());
     
-    std::cout << "[TimeStepData::updateScalarBuffer] Updating " << gpu_data_.scalar_fields_.size() 
+    // 根据字段位置选择正确的映射大小
+    size_t map_size = (active_field->location_ == Location::POINT) 
+                      ? parts_[0].vertex_to_point_map_.size()
+                      : parts_[0].vertex_to_cell_map_.size();
+    gpu_data_.scalar_fields_.resize(map_size);
+
+    std::cout << "[TimeStepData::updateScalarBuffer] Updating " << gpu_data_.scalar_fields_.size()
               << " scalar values from field: " << active_field->name_
               << " (location: " << (active_field->location_ == Location::POINT ? "POINT" : "CELL")
-              << ", min: " << active_field->min_value << ", max: " << active_field->max_value << ")" << std::endl;
-    
+              << ", min: " << active_field->min_value << ", max: " << active_field->max_value << ")"
+              << std::endl;
+
     // 根据场量位置选择不同的映射
     if (active_field->location_ == Location::POINT)
     {
         // 点场：使用vertex_to_point_map_
-        for (size_t vertex_idx = 0; vertex_idx < parts_[0].vertex_to_point_map_.size(); ++vertex_idx)
+        for (size_t vertex_idx = 0; vertex_idx < parts_[0].vertex_to_point_map_.size();
+             ++vertex_idx)
         {
             size_t point_idx = parts_[0].vertex_to_point_map_[vertex_idx];
             if (point_idx < active_field->num_tuples_)
@@ -251,75 +271,52 @@ void TimeStepData::updateScalarBuffer()
     }
 }
 
-void TimeStepData::updateVectorBuffer(const std::string& field_name)
+void TimeStepData::updateVectorBuffer()
 {
-    qInfo() << "[TimeStepData::updateVectorBuffer] Updating vector buffer for field: " << QString::fromStdString(field_name);
     if (parts_.empty())
     {
         std::cerr << "[TimeStepData::updateVectorBuffer] No parts available." << std::endl;
         return;
     }
-    
-    // 查找矢量字段
-    const Field* vector_field = nullptr;
-    for (const auto& field : parts_[0].point_fields_)
+
+    if (!parts_[0].active_field_ || parts_[0].active_field_->type_ != Type::VECTOR)
     {
-        if (field.name_ == field_name && field.type_ == Type::VECTOR)
-        {
-            vector_field = &field;
-            break;
-        }
-    }
-    
-    // 如果在点场中没找到，尝试在单元场中查找
-    if (!vector_field)
-    {
-        for (const auto& field : parts_[0].cell_fields_)
-        {
-            if (field.name_ == field_name && field.type_ == Type::VECTOR)
-            {
-                vector_field = &field;
-                break;
-            }
-        }
-    }
-    
-    if (!vector_field)
-    {
-        std::cerr << "[TimeStepData::updateVectorBuffer] Vector field not found: " << field_name << std::endl;
+        std::cerr << "[TimeStepData::updateVectorBuffer] Vector field not found or not active." << std::endl;
         return;
     }
-    
+
+    const Field* vector_field = parts_[0].active_field_;
+
     // 清空旧数据
     gpu_data_.vector_field_positions_.clear();
     gpu_data_.vector_field_directions_.clear();
     gpu_data_.vector_field_magnitudes_.clear();
-    
+
     // 获取表面网格顶点作为向量起始点（使用surface_vertices_而不是原始vertices_）
     const auto& surface_vertices = gpu_data_.surface_vertices_;
-    const auto& vertex_map = (vector_field->location_ == Location::POINT) ? 
-                             parts_[0].vertex_to_point_map_ : 
-                             parts_[0].vertex_to_cell_map_;
-    
+    const auto& vertex_map = (vector_field->location_ == Location::POINT)
+                                 ? parts_[0].vertex_to_point_map_
+                                 : parts_[0].vertex_to_cell_map_;
+
     gpu_data_.vector_field_positions_.reserve(surface_vertices.size());
     gpu_data_.vector_field_directions_.reserve(surface_vertices.size());
     gpu_data_.vector_field_magnitudes_.reserve(vertex_map.size());
-    
+
     float min_magnitude = std::numeric_limits<float>::max();
     float max_magnitude = -std::numeric_limits<float>::max();
-    
+
     // 为每个顶点提取矢量值
     for (size_t vertex_idx = 0; vertex_idx < vertex_map.size(); ++vertex_idx)
     {
         size_t data_idx = vertex_map[vertex_idx];
-        
+
         if (data_idx >= vector_field->num_tuples_)
         {
-            std::cerr << "[TimeStepData::updateVectorBuffer] Index out of range: " 
-                      << data_idx << std::endl;
+            std::cerr << "[TimeStepData::updateVectorBuffer] Index out of range: " << data_idx
+                      << std::endl;
             continue;
         }
-        
+
         // 获取顶点位置（从surface_vertices_获取）
         if (vertex_idx * 3 + 2 < surface_vertices.size())
         {
@@ -329,21 +326,26 @@ void TimeStepData::updateVectorBuffer(const std::string& field_name)
         }
         else
         {
-            std::cerr << "[TimeStepData::updateVectorBuffer] Vertex index out of surface_vertices range: " 
-                      << vertex_idx << std::endl;
+            std::cerr
+                << "[TimeStepData::updateVectorBuffer] Vertex index out of surface_vertices range: "
+                << vertex_idx << std::endl;
             continue;
         }
-        
+
         // 获取矢量方向 (取前三个分量)
         float vx = vector_field->data[data_idx * vector_field->num_components_];
-        float vy = (vector_field->num_components_ > 1) ? vector_field->data[data_idx * vector_field->num_components_ + 1] : 0.0f;
-        float vz = (vector_field->num_components_ > 2) ? vector_field->data[data_idx * vector_field->num_components_ + 2] : 0.0f;
-        
+        float vy = (vector_field->num_components_ > 1)
+                       ? vector_field->data[data_idx * vector_field->num_components_ + 1]
+                       : 0.0f;
+        float vz = (vector_field->num_components_ > 2)
+                       ? vector_field->data[data_idx * vector_field->num_components_ + 2]
+                       : 0.0f;
+
         // 计算幅值
         float magnitude = std::sqrt(vx * vx + vy * vy + vz * vz);
         min_magnitude = std::min(min_magnitude, magnitude);
         max_magnitude = std::max(max_magnitude, magnitude);
-        
+
         // 归一化方向
         if (magnitude > 1e-6f)
         {
@@ -351,28 +353,28 @@ void TimeStepData::updateVectorBuffer(const std::string& field_name)
             vy /= magnitude;
             vz /= magnitude;
         }
-        
+
         gpu_data_.vector_field_directions_.push_back(vx);
         gpu_data_.vector_field_directions_.push_back(vy);
         gpu_data_.vector_field_directions_.push_back(vz);
         gpu_data_.vector_field_magnitudes_.push_back(magnitude);
     }
-    
+
     gpu_data_.vector_magnitude_min_ = min_magnitude;
     gpu_data_.vector_magnitude_max_ = max_magnitude;
-    
-    std::string location_str = (vector_field->location_ == Location::POINT) ? "POINT" : "CELL";
-    std::cout << "[TimeStepData::updateVectorBuffer] Generated " 
-              << gpu_data_.vector_field_positions_.size() / 3 << " vectors from " 
-              << location_str << " field: " << field_name
-              << " (magnitude range: [" << min_magnitude << ", " << max_magnitude << "])" << std::endl;
-    
+
+   
+
     if (vector_field->location_ == Location::POINT)
     {
-        std::cout << "  → POINT data: 每个顶点从对应的点获取矢量值，三角形的三个顶点可能有不同的矢量方向" << std::endl;
+        std::cout
+            << "  → POINT data: 每个顶点从对应的点获取矢量值，三角形的三个顶点可能有不同的矢量方向"
+            << std::endl;
     }
     else if (vector_field->location_ == Location::CELL)
     {
-        std::cout << "  → CELL data: 每个顶点从所属单元获取矢量值，三角形的三个顶点将显示相同的矢量方向" << std::endl;
+        std::cout
+            << "  → CELL data: 每个顶点从所属单元获取矢量值，三角形的三个顶点将显示相同的矢量方向"
+            << std::endl;
     }
 }

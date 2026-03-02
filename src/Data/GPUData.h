@@ -18,4 +18,12 @@ public:
     std::vector<float> vector_field_magnitudes_; // 矢量幅值 (scalar value)
     float vector_magnitude_min_;
     float vector_magnitude_max_;
+
+    // 流线数据
+    std::vector<float> streamline_vertices_; // 流线顶点 (x, y, z)
+    std::vector<float> streamline_magnitudes_; // 流线幅值 (scalar value)
+    std::vector<uint32_t> streamline_indices_; // 流线索引
+    std::vector<uint32_t> streamline_counts_;  // 每条流线的顶点数量
+    float streamline_magnitude_min_;
+    float streamline_magnitude_max_;
 };

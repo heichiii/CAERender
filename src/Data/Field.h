@@ -14,7 +14,8 @@ enum class Type
     SCALAR,
     VECTOR,
     TENSOR,
-    OTHER
+    OTHER,
+    NONE
 };
 class Field
 {

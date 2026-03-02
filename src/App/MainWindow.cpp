@@ -1,22 +1,22 @@
 #include "MainWindow.h"
+#include "Loader/LoaderFactory.h"
+#include "TestTool/Profiler.h"
 #include "TestTool/debug.h"
 #include <QAction>
+#include <QCheckBox>
+#include <QComboBox>
 #include <QDebug>
 #include <QDir>
 #include <QFileDialog>
-#include <QCheckBox>
-#include <QMenuBar>
-#include <QSignalBlocker>
-#include <QWidgetAction>
-#include <QVBoxLayout>
+#include <QGroupBox>
 #include <QHBoxLayout>
 #include <QLabel>
-#include <QWidget>
-#include <QComboBox>
-#include <QGroupBox>
+#include <QMenuBar>
 #include <QSet>
-#include "Loader/LoaderFactory.h"
-#include "TestTool/Profiler.h"
+#include <QSignalBlocker>
+#include <QVBoxLayout>
+#include <QWidget>
+#include <QWidgetAction>
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     setWindowTitle("CAE Renderer");
@@ -29,15 +29,15 @@ void MainWindow::setupUI()
 {
     gl_widget_ = new GLWidget(this);
     setCentralWidget(gl_widget_);
-    
+
     // 创建 Render Options Dock
     render_dock_ = new QDockWidget("Render Options", this);
     render_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    
+
     // 创建 render_dock_ 的内容面板
     auto* render_widget = new QWidget();
     auto* render_layout = new QVBoxLayout(render_widget);
-    
+
     // 基础网格渲染模式
     auto* mesh_group = new QGroupBox("基础网格");
     auto* mesh_layout = new QVBoxLayout();
@@ -48,7 +48,7 @@ void MainWindow::setupUI()
     mesh_layout->addWidget(mesh_render_mode_combo_);
     mesh_group->setLayout(mesh_layout);
     render_layout->addWidget(mesh_group);
-    
+
     // 场量选择
     auto* field_group = new QGroupBox("场量");
     auto* field_layout = new QVBoxLayout();
@@ -57,12 +57,12 @@ void MainWindow::setupUI()
     field_layout->addWidget(field_combo_);
     field_group->setLayout(field_layout);
     render_layout->addWidget(field_group);
-    
+
     // 场量选项（动态显示）
     field_options_widget_ = new QWidget();
     auto* options_layout = new QVBoxLayout(field_options_widget_);
     options_layout->setContentsMargins(0, 0, 0, 0);
-    
+
     // 配色方案（用于标量场）
     color_scheme_label_ = new QLabel("配色方案:");
     color_scheme_combo_ = new QComboBox();
@@ -73,7 +73,7 @@ void MainWindow::setupUI()
     color_scheme_combo_->addItem("蓝白红");
     options_layout->addWidget(color_scheme_label_);
     options_layout->addWidget(color_scheme_combo_);
-    
+
     // 矢量渲染模式（用于矢量场）
     vector_render_mode_label_ = new QLabel("渲染模式:");
     vector_render_mode_combo_ = new QComboBox();
@@ -81,61 +81,61 @@ void MainWindow::setupUI()
     vector_render_mode_combo_->addItem("流线生成");
     options_layout->addWidget(vector_render_mode_label_);
     options_layout->addWidget(vector_render_mode_combo_);
-    
+
     // 默认隐藏所有场量选项
     color_scheme_label_->hide();
     color_scheme_combo_->hide();
     vector_render_mode_label_->hide();
     vector_render_mode_combo_->hide();
-    
+
     render_layout->addWidget(field_options_widget_);
     render_layout->addStretch();
-    
+
     render_widget->setLayout(render_layout);
     render_dock_->setWidget(render_widget);
     addDockWidget(Qt::LeftDockWidgetArea, render_dock_);
-    
+
     // 连接信号
-    connect(field_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::onFieldSelectionChanged);
-    
+    connect(field_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &MainWindow::onFieldSelectionChanged);
+
     // 连接基础网格渲染模式
-    connect(mesh_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::onMeshRenderModeChanged);
-    
+    connect(mesh_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &MainWindow::onMeshRenderModeChanged);
+
     // 连接配色方案
-    connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::onColorSchemeChanged);
-    
+    connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &MainWindow::onColorSchemeChanged);
+
     // 连接矢量渲染模式
-    connect(vector_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged),
-            this, &MainWindow::onVectorRenderModeChanged);
+    connect(vector_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &MainWindow::onVectorRenderModeChanged);
 
     // 创建 Properties Dock
     properties_dock_ = new QDockWidget("Properties", this);
     properties_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    
+
     // 创建 properties_dock_ 的内容面板
     auto* properties_widget = new QWidget();
     auto* layout = new QVBoxLayout(properties_widget);
-    
+
     file_path_label_ = new QLabel("File: No file loaded");
     file_path_label_->setWordWrap(true);
     layout->addWidget(new QLabel("<b>File Path:</b>"));
     layout->addWidget(file_path_label_);
-    
+
     layout->addSpacing(10);
-    
+
     info_label_ = new QLabel();
     info_label_->setWordWrap(true);
     info_label_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
     layout->addWidget(new QLabel("<b>Mesh & Field Info:</b>"));
     layout->addWidget(info_label_);
-    
+
     layout->addStretch();
     properties_widget->setLayout(layout);
     properties_dock_->setWidget(properties_widget);
-    
+
     addDockWidget(Qt::RightDockWidgetArea, properties_dock_);
 }
 
@@ -159,23 +159,25 @@ void MainWindow::setupMenus()
     view->addAction(renderOptionsAction);
     view->addAction(propertiesAction);
 
-    connect(renderOptionsCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        render_dock_->setVisible(checked);
-    });
+    connect(renderOptionsCheckBox, &QCheckBox::toggled, this,
+            [this](bool checked) { render_dock_->setVisible(checked); });
 
-    connect(propertiesCheckBox, &QCheckBox::toggled, this, [this](bool checked) {
-        properties_dock_->setVisible(checked);
-    });
+    connect(propertiesCheckBox, &QCheckBox::toggled, this,
+            [this](bool checked) { properties_dock_->setVisible(checked); });
 
-    connect(render_dock_, &QDockWidget::visibilityChanged, this, [renderOptionsCheckBox](bool visible) {
-        QSignalBlocker blocker1(renderOptionsCheckBox);
-        renderOptionsCheckBox->setChecked(visible);
-    });
+    connect(render_dock_, &QDockWidget::visibilityChanged, this,
+            [renderOptionsCheckBox](bool visible)
+            {
+                QSignalBlocker blocker1(renderOptionsCheckBox);
+                renderOptionsCheckBox->setChecked(visible);
+            });
 
-    connect(properties_dock_, &QDockWidget::visibilityChanged, this, [propertiesCheckBox](bool visible) {
-        QSignalBlocker blocker2(propertiesCheckBox);
-        propertiesCheckBox->setChecked(visible);
-    });
+    connect(properties_dock_, &QDockWidget::visibilityChanged, this,
+            [propertiesCheckBox](bool visible)
+            {
+                QSignalBlocker blocker2(propertiesCheckBox);
+                propertiesCheckBox->setChecked(visible);
+            });
 }
 void MainWindow::test_openFile()
 {
@@ -204,39 +206,39 @@ void MainWindow::openFile()
 void MainWindow::updatePropertiesPanel()
 {
     file_path_label_->setText(QString::fromStdString(current_file_path_));
-    
+
     const CaseData* case_data = gl_widget_->getCaseData();
     if (!case_data || case_data->steps_.empty())
     {
         info_label_->setText("No data loaded.");
         return;
     }
-    
+
     const TimeStepData& time_step = case_data->steps_[0];
-    
+
     // 统计点、单元、场量信息
     int total_points = 0;
     int total_cells = 0;
     int total_point_fields = 0;
     int total_cell_fields = 0;
-    
+
     for (const auto& part : time_step.parts_)
     {
-        total_points += part.vertices_.size() / 3;  // 3个浮点数为一个点
+        total_points += part.vertices_.size() / 3; // 3个浮点数为一个点
         total_cells += part.faces_.size();
         total_point_fields += part.point_fields_.size();
         total_cell_fields += part.cell_fields_.size();
     }
-    
+
     QString text;
     text += QString("Time Step: %1\n").arg(time_step.time_);
     text += QString("Parts: %1\n\n").arg(time_step.parts_.size());
-    
+
     // Mesh Info
     text += "Mesh Info:\n";
     text += QString("  Total Points: %1\n").arg(total_points);
     text += QString("  Total Cells: %1\n\n").arg(total_cells);
-    
+
     // Point Fields
     text += QString("Point Fields (%1):\n").arg(total_point_fields);
     if (total_point_fields == 0)
@@ -249,15 +251,17 @@ void MainWindow::updatePropertiesPanel()
         {
             for (const auto& field : part.point_fields_)
             {
-                QString field_type = (field.type_ == Type::SCALAR) ? "Scalar" : 
-                                     (field.type_ == Type::VECTOR) ? "Vector" : "Tensor";
+                QString field_type = (field.type_ == Type::SCALAR)   ? "Scalar"
+                                     : (field.type_ == Type::VECTOR) ? "Vector"
+                                                                     : "Tensor";
                 text += QString("  • %1 (%2, %3 components)\n")
-                    .arg(QString::fromStdString(field.name_), field_type).arg(field.num_components_);
+                            .arg(QString::fromStdString(field.name_), field_type)
+                            .arg(field.num_components_);
             }
         }
         text += "\n";
     }
-    
+
     // Cell Fields
     text += QString("Cell Fields (%1):\n").arg(total_cell_fields);
     if (total_cell_fields == 0)
@@ -270,14 +274,16 @@ void MainWindow::updatePropertiesPanel()
         {
             for (const auto& field : part.cell_fields_)
             {
-                QString field_type = (field.type_ == Type::SCALAR) ? "Scalar" : 
-                                     (field.type_ == Type::VECTOR) ? "Vector" : "Tensor";
+                QString field_type = (field.type_ == Type::SCALAR)   ? "Scalar"
+                                     : (field.type_ == Type::VECTOR) ? "Vector"
+                                                                     : "Tensor";
                 text += QString("  • %1 (%2, %3 components)\n")
-                    .arg(QString::fromStdString(field.name_), field_type).arg(field.num_components_);
+                            .arg(QString::fromStdString(field.name_), field_type)
+                            .arg(field.num_components_);
             }
         }
     }
-    
+
     info_label_->setText(text);
 }
 
@@ -293,72 +299,28 @@ void MainWindow::onFieldSelectionChanged(int index)
     color_scheme_combo_->hide();
     vector_render_mode_label_->hide();
     vector_render_mode_combo_->hide();
-    
+
     if (index == 0) // "无"选项
     {
-        gl_widget_->activateField("无");
+        gl_widget_->getCaseData()->steps_[0].activateField("无");
         gl_widget_->setUseFieldColoring(false);
+        gl_widget_->setRenderMode(Mode::BASIC);
         return;
     }
-    
-    
-    // 获取选中的场量
+
     QString field_name = field_combo_->currentText();
 
-    const CaseData* case_data = gl_widget_->getCaseData();
-    if (!case_data || case_data->steps_.empty())
-    {
-        return;
-    }
-    
-    const TimeStepData& time_step = case_data->steps_[0];
-    
-    // 查找场量类型
-    Type field_type = Type::OTHER;
-    for (const auto& part : time_step.parts_)
-    {
-        // 在点场中查找
-        for (const auto& field : part.point_fields_)
-        {
-            if (QString::fromStdString(field.name_) == field_name)
-            {
-                field_type = field.type_;
-                break;
-            }
-        }
-        
-        // 在单元场中查找
-        if (field_type == Type::OTHER)
-        {
-            for (const auto& field : part.cell_fields_)
-            {
-                if (QString::fromStdString(field.name_) == field_name)
-                {
-                    field_type = field.type_;
-                    break;
-                }
-            }
-        }
-        
-        if (field_type != Type::OTHER)
-            break;
-    }
-    
-    // 根据场量类型显示相应选项
+    Type field_type = gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
     if (field_type == Type::SCALAR)
     {
-        // 标量场：激活场量并启用场量着色
-        gl_widget_->activateField(field_name.toStdString());
+        gl_widget_->setRenderMode(Mode::BASIC);
         gl_widget_->setUseFieldColoring(true);
-        gl_widget_->setRenderingVector(false);
         color_scheme_label_->show();
         color_scheme_combo_->show();
     }
     else if (field_type == Type::VECTOR)
     {
-        // 矢量场：激活矢量字段渲染
-        gl_widget_->activateVectorField(field_name.toStdString());
-        gl_widget_->setRenderingVector(true);
+        gl_widget_->setRenderMode(Mode::ARROW);
         vector_render_mode_label_->show();
         vector_render_mode_combo_->show();
     }
@@ -368,22 +330,22 @@ void MainWindow::updateFieldList()
 {
     // 保存当前选择
     QString current_selection = field_combo_->currentText();
-    
+
     // 清空并重新填充场量列表
     field_combo_->clear();
     field_combo_->addItem("无");
-    
+
     const CaseData* case_data = gl_widget_->getCaseData();
     if (!case_data || case_data->steps_.empty())
     {
         return;
     }
-    
+
     const TimeStepData& time_step = case_data->steps_[0];
-    
+
     // 收集所有场量名称（去重）
     QSet<QString> field_names;
-    
+
     for (const auto& part : time_step.parts_)
     {
         // 添加点场
@@ -391,23 +353,23 @@ void MainWindow::updateFieldList()
         {
             field_names.insert(QString::fromStdString(field.name_));
         }
-        
+
         // 添加单元场
         for (const auto& field : part.cell_fields_)
         {
             field_names.insert(QString::fromStdString(field.name_));
         }
     }
-    
+
     // 按字母顺序排序并添加到下拉框
     QList<QString> sorted_names = field_names.values();
     std::sort(sorted_names.begin(), sorted_names.end());
-    
+
     for (const QString& name : sorted_names)
     {
         field_combo_->addItem(name);
     }
-    
+
     // 尝试恢复之前的选择
     int index = field_combo_->findText(current_selection);
     if (index >= 0)
