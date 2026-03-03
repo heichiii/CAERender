@@ -1,7 +1,6 @@
 #pragma once
 #include "MeshPart.h"
 #include "GPUData.h"
-#include "Render/StreamlineGenerator.h"
 
 class TimeStepData
 {

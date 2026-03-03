@@ -1,5 +1,6 @@
 #include "TimeStepData.h"
 #include "TestTool/Profiler.h"
+#include "Algorithm/StreamlineGenerator.h"
 #include <cmath>
 #include <limits>
 #ifdef emit
