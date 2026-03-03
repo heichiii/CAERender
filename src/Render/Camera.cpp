@@ -8,7 +8,7 @@ Camera::Camera()
       fov_(45.0f),
       aspect_ratio_(4.0f / 3.0f),
       near_plane_(0.1f),
-      far_plane_(100.0f),
+      far_plane_(300.0f),
       distance_to_target_(5.0f),
       phi_(90.0f),
       theta_(90.0f),

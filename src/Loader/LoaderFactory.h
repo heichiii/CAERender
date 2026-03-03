@@ -1,6 +1,7 @@
 #pragma once
 #include "Loader.h"
 #include "VTKLoader.h"
+#include "PLYLoader.h"
 #include <memory>
 #include <string>
 
@@ -15,6 +16,10 @@ public:
         if (endsWith(filename, ".vtk") || endsWith(filename, ".vtu") || endsWith(filename, ".vtp"))
         {
             return std::make_unique<VTK::VTKLoader>(filename);
+        }
+        else if (endsWith(filename, ".ply"))
+        {
+            return std::make_unique<PLYLoader>(filename);
         }
         // 可以添加更多格式的支持
         return nullptr; // 不支持的格式

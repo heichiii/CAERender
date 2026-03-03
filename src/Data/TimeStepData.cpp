@@ -80,19 +80,19 @@ void TimeStepData::generateGPUData()
     // }
 
     size_t vertex_index = 0;
+    size_t skipped_triangles = 0;
     auto emitTriangle = [&](const Face& face, uint32_t i0, uint32_t i1, uint32_t i2)
     {
         const size_t vcount = parts_[0].vertices_.size() / 3;
         if (i0 >= face.num_vertices || i1 >= face.num_vertices || i2 >= face.num_vertices)
         {
-            std::cerr << "[TimeStepData::generateGPUData] Triangle index out of face range."
-                      << std::endl;
+            skipped_triangles++;
             return;
         }
         if (face.original[i0] >= vcount || face.original[i1] >= vcount ||
             face.original[i2] >= vcount)
         {
-            std::cerr << "[TimeStepData::generateGPUData] Face index out of range." << std::endl;
+            skipped_triangles++;
             return;
         }
         float v0[3] = {parts_[0].vertices_[face.original[i0] * 3],
@@ -146,6 +146,9 @@ void TimeStepData::generateGPUData()
             emitTriangle(face, 0, static_cast<uint32_t>(i), static_cast<uint32_t>(i + 1));
         }
     }
+
+    std::cout << "[TimeStepData::generateGPUData] Generated " << (gpu_data_.indices_.size() / 3) 
+              << " valid triangles, skipped " << skipped_triangles << " invalid triangles" << std::endl;
 }
 
 Type TimeStepData::activateField(const std::string& field_name)
