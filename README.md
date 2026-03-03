@@ -9,3 +9,9 @@
   - Render:管理opengl，着色器
   - Test:测试工具
 
+## TODO
+图例
+GPU切换
+LOD
+流线完善
+性能优化

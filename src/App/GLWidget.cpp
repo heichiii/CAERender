@@ -101,6 +101,7 @@ void GLWidget::mousePressEvent(QMouseEvent* event)
     if (event->button() == Qt::LeftButton)
     {
         is_rotating_ = true;
+        lod_update_delay_ = 0;  // 重置 LOD 延迟计数
         // 每次按下鼠标时更新旋转中心
         camera_.updateRotationCenter(getScreenCenterInWorld());
     }
@@ -216,19 +217,37 @@ void GLWidget::updateLOD()
             renderer_.setLODLevel(LODLevel::HIGH);
             emit lodLevelChanged(LODLevel::HIGH);
         }
+        lod_update_delay_ = 0;
         return;
     }
     
-    // 如果用户正在操作（鼠标按下），使用简化LOD
+    // 确定目标 LOD 级别
+    LODLevel target_level = LODLevel::HIGH;
     if (is_interacting_)
     {
-        LODLevel new_level = LODLevel::MEDIUM; // 操作时用中细节
-
-        if (new_level != renderer_.getLODLevel())
+        target_level = LODLevel::MEDIUM;  // 操作时用中细节
+    }
+    
+    // 防抖机制：延迟 2 帧才切换回 HIGH（避免频繁切换）
+    if (target_level == LODLevel::HIGH && renderer_.getLODLevel() != LODLevel::HIGH)
+    {
+        lod_update_delay_++;
+        if (lod_update_delay_ < 2)  // 延迟 2 帧
         {
-            renderer_.setLODLevel(new_level);
-            emit lodLevelChanged(new_level);
+            return;
         }
+        lod_update_delay_ = 0;
+    }
+    else
+    {
+        lod_update_delay_ = 0;
+    }
+
+    // 只在 LOD 级别改变时更新
+    if (target_level != renderer_.getLODLevel())
+    {
+        renderer_.setLODLevel(target_level);
+        emit lodLevelChanged(target_level);
     }
 }
 

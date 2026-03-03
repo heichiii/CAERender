@@ -134,6 +134,8 @@ private:
     std::vector<uint32_t> lod_medium_indices_;
     std::vector<uint32_t> lod_low_indices_;
     size_t active_lod_index_count_ = 0;
+    size_t ebo_capacity_ = 0;  // EBO 预分配大小
+    bool lod_buffer_dirty_ = false;  // 标记是否需要更新 EBO
 
     // 私有方法
     void rebuildLODIndices();

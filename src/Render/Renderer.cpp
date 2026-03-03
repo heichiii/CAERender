@@ -655,6 +655,7 @@ void Renderer::rebuildLODIndices()
         lod_medium_indices_.clear();
         lod_low_indices_.clear();
         active_lod_index_count_ = 0;
+        ebo_capacity_ = 0;  // 重置缓冲区容量
         return;
     }
 
@@ -670,6 +671,8 @@ void Renderer::rebuildLODIndices()
     {
         lod_low_indices_ = lod_medium_indices_;
     }
+    
+    ebo_capacity_ = 0;  // 重置缓冲区容量，强制重新分配
 }
 
 void Renderer::applyLODToIndexBuffer()
@@ -702,9 +705,27 @@ void Renderer::applyLODToIndexBuffer()
     }
 
     active_lod_index_count_ = activeIndices->size();
+    size_t required_size = activeIndices->size() * sizeof(uint32_t);
 
     vao_.bind();
     ebo_.bind();
-    ebo_.allocate(activeIndices->data(), static_cast<int>(activeIndices->size() * sizeof(uint32_t)));
+    
+    // 若需要更多容量，则重新分配；否则使用 glBufferSubData 更新数据
+    if (required_size > ebo_capacity_)
+    {
+        // 预分配大于需要的空间（减少重新分配次数）
+        ebo_capacity_ = static_cast<size_t>(required_size * 1.5f);
+        // 先分配空的缓冲区
+        ebo_.allocate(nullptr, static_cast<int>(ebo_capacity_));
+        // 再写入实际数据
+        ebo_.write(0, activeIndices->data(), static_cast<int>(required_size));
+        qDebug() << QString("LOD: Reallocated EBO buffer to %1 bytes").arg(static_cast<int>(ebo_capacity_));
+    }
+    else
+    {
+        // 使用 glBufferSubData 更新，避免重新分配
+        ebo_.write(0, activeIndices->data(), static_cast<int>(required_size));
+    }
+    
     vao_.release();
 }

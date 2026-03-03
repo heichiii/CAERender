@@ -68,6 +68,8 @@ private:
     // 操作状态标志
     bool is_interacting_ = false;  // 用户正在操作（鼠标按下或滚轮）
     bool lod_enabled_ = true;  // LOD功能是否启用
+    LODLevel pending_lod_level_ = LODLevel::HIGH;  // 待切换的 LOD 级别
+    int lod_update_delay_ = 0;  // LOD 更新延迟计数器（防抖）
 
     // 计算屏幕中心作为旋转中心
     QVector3D getScreenCenterInWorld() const;
