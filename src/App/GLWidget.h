@@ -3,6 +3,7 @@
 #include <QOpenGLWidget>
 #include <QMouseEvent>
 #include <QWheelEvent>
+#include <QElapsedTimer>
 #include "Data/CaseData.h"
 #include "Render/Renderer.h"
 #include "Render/Camera.h"
@@ -24,6 +25,12 @@ public:
     void activateVectorField(const std::string& field_name);
     void setVectorRenderMode(VectorRenderMode mode);
     void setRenderMode(Mode mode);
+    
+    // 获取帧率
+    float getFPS() const { return current_fps_; }
+
+signals:
+    void fpsUpdated(float fps);
 
 private:
     void initializeGL() override;
@@ -39,12 +46,16 @@ private:
     Renderer renderer_;
     Camera camera_;
 
-
     QPoint last_mouse_pos_;
     QPoint mouse_press_pos_;  // 鼠标按下位置
     bool is_rotating_ = false;
     bool is_panning_ = false;
     bool is_zooming_ = false;
+
+    // 帧率计算
+    QElapsedTimer fps_timer_;
+    int frame_count_ = 0;
+    float current_fps_ = 0.0f;
 
     // 计算屏幕中心作为旋转中心
     QVector3D getScreenCenterInWorld() const;

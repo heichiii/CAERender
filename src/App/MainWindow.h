@@ -35,6 +35,7 @@ private:
     // properties panel widgets
     QLabel* file_path_label_;
     QLabel* info_label_;
+    QLabel* fps_label_;
     std::string current_file_path_;
     
     // render options widgets
@@ -53,5 +54,6 @@ private slots:
     void onMeshRenderModeChanged(int index);
     void onColorSchemeChanged(int index);
     void onVectorRenderModeChanged(int index);
+    void onFpsUpdated(float fps);
 
 };

@@ -55,11 +55,24 @@ void GLWidget::initializeGL()
     
     // 初始化旋转中心为原点
     camera_.updateRotationCenter(QVector3D(0.0f, 0.0f, 0.0f));
+    
+    // 初始化帧率计时器
+    fps_timer_.start();
 }
 
 void GLWidget::paintGL()
 {
     renderer_.render(camera_);
+    
+    // 更新帧率计算
+    frame_count_++;
+    if (fps_timer_.elapsed() >= 1000)  // 每1秒更新一次FPS
+    {
+        current_fps_ = frame_count_ * 1000.0f / fps_timer_.elapsed();
+        frame_count_ = 0;
+        fps_timer_.restart();
+        emit fpsUpdated(current_fps_);
+    }
 }
 
 void GLWidget::resizeGL(int w, int h)

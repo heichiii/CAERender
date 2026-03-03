@@ -17,6 +17,7 @@
 #include <QVBoxLayout>
 #include <QWidget>
 #include <QWidgetAction>
+#include <QStatusBar>
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     setWindowTitle("CAE Renderer");
@@ -137,6 +138,15 @@ void MainWindow::setupUI()
     properties_dock_->setWidget(properties_widget);
 
     addDockWidget(Qt::RightDockWidgetArea, properties_dock_);
+    
+    // 创建 Status Bar 显示帧率
+    fps_label_ = new QLabel("FPS: 0.0", this);
+    fps_label_->setAlignment(Qt::AlignLeft);
+    fps_label_->setMinimumWidth(100);
+    statusBar()->addWidget(fps_label_);
+    
+    // 连接GLWidget的帧率信号
+    connect(gl_widget_, &GLWidget::fpsUpdated, this, &MainWindow::onFpsUpdated);
 }
 
 void MainWindow::setupMenus()
@@ -417,4 +427,9 @@ void MainWindow::onVectorRenderModeChanged(int index)
         gl_widget_->getCaseData()->steps_[0].updateStreamlineBuffer();
         gl_widget_->setRenderMode(Mode::STREAMLINE);
     }
+}
+
+void MainWindow::onFpsUpdated(float fps)
+{
+    fps_label_->setText(QString::asprintf("FPS: %.1f", fps));
 }
