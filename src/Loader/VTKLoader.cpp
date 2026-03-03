@@ -117,18 +117,30 @@ MeshPart VTK::VTKLoader::load()
     {
         vtkDataArray* data_array = point_data_->GetArray(i);
         FieldData field;
-        field.name_ = data_array->GetName();
+        field.name_ = std::string("POINT-") + data_array->GetName();
         field.location_ = Location::POINT;
         // field.type_ = Type::SCALAR; // 简化处理，假设为标量
         field.num_components_ = data_array->GetNumberOfComponents();
         if (field.num_components_ == 1)
+        {
             field.type_ = Type::SCALAR;
+            field.name_ += "-SCALAR";
+        }
         else if (field.num_components_ == 3)
+        {
+            field.name_ += "-VECTOR";
             field.type_ = Type::VECTOR;
+        }
         else if (field.num_components_ == 9)
+        {
+            field.name_ += "-TENSOR";
             field.type_ = Type::TENSOR;
+        }
         else
+        {
+            field.name_ += "-OTHER";
             field.type_ = Type::OTHER;
+        }
         field.num_tuples_ = data_array->GetNumberOfTuples();
         field.pdata_ = data_array;
         point_fields_.push_back(field);
@@ -141,18 +153,29 @@ MeshPart VTK::VTKLoader::load()
     {
         vtkDataArray* data_array = cell_data_->GetArray(i);
         FieldData field;
-        field.name_ = data_array->GetName();
+        field.name_ = std::string("CELL-") + data_array->GetName();
         field.location_ = Location::CELL;
-        // field.type_ = Type::SCALAR; // 简化处理，假设为标量
         field.num_components_ = data_array->GetNumberOfComponents();
         if (field.num_components_ == 1)
+        {
             field.type_ = Type::SCALAR;
+            field.name_ += "-SCALAR";
+        }
         else if (field.num_components_ == 3)
+        {
+            field.name_ += "-VECTOR";
             field.type_ = Type::VECTOR;
+        }
         else if (field.num_components_ == 9)
+        {
+            field.name_ += "-TENSOR";
             field.type_ = Type::TENSOR;
+        }
         else
+        {
+            field.name_ += "-OTHER";
             field.type_ = Type::OTHER;
+        }
         field.num_tuples_ = data_array->GetNumberOfTuples();
         field.pdata_ = data_array;
         cell_fields_.push_back(field);
@@ -188,6 +211,13 @@ MeshPart VTK::VTKLoader::load()
                 f.data.push_back(static_cast<float>(val));
             }
         }
+        if (f.type_ == Type::SCALAR)
+        {
+            f.computeRange();
+        }
+        qInfo() << "Loaded point field: " << QString::fromStdString(f.name_)
+                << " components: " << f.num_components_ << " tuples: " << f.num_tuples_
+                << " range: [" << f.min_value << ", " << f.max_value << "]";
         mesh_part.point_fields_.push_back(std::move(f));
     }
     // 3-提取单元数据
@@ -208,12 +238,19 @@ MeshPart VTK::VTKLoader::load()
                 f.data.push_back(static_cast<float>(val));
             }
         }
+        if (f.type_ == Type::SCALAR)
+        {
+            f.computeRange();
+        }
+        qInfo() << "Loaded cell field: " << QString::fromStdString(f.name_)
+                << " components: " << f.num_components_ << " tuples: " << f.num_tuples_
+                << " range: [" << f.min_value << ", " << f.max_value << "]";
         mesh_part.cell_fields_.push_back(std::move(f));
     }
     // 4-从单元提取所有面
     // TODO:面提取VTK API
     mesh_part.faces_.reserve(num_cells_ * 6); // 粗略估计每个单元平均6个面
-    for(vtkIdType cell_id = 0; cell_id < num_cells_; ++cell_id)
+    for (vtkIdType cell_id = 0; cell_id < num_cells_; ++cell_id)
     {
         vtkCell* cell = dataset_->GetCell(cell_id);
         int cell_type = cell->GetCellType();
@@ -225,14 +262,13 @@ MeshPart VTK::VTKLoader::load()
             if (num_points < required)
             {
                 std::cerr << "Unsupported cell (too few points): " << type_name
-                          << " points=" << num_points
-                          << " cell ID: " << cell_id << std::endl;
+                          << " points=" << num_points << " cell ID: " << cell_id << std::endl;
                 return false;
             }
             return true;
         };
 #endif
-        #define IDX(k) static_cast<uint32_t>(point_ids->GetId(k))
+#define IDX(k) static_cast<uint32_t>(point_ids->GetId(k))
         Face face;
         switch (cell_type)
         {
@@ -289,9 +325,9 @@ MeshPart VTK::VTKLoader::load()
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
                 break;
-         case VTK_WEDGE:
-             if (!requirePoints(6, "VTK_WEDGE"))
-                break;
+            case VTK_WEDGE:
+                if (!requirePoints(6, "VTK_WEDGE"))
+                    break;
                 face.set3(IDX(0), IDX(1), IDX(2));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
@@ -329,10 +365,11 @@ MeshPart VTK::VTKLoader::load()
                 break;
             default:
                 // 对于不支持的单元类型，可以选择跳过或抛出异常
-                std::cerr << "Unsupported cell type: " << cell_type << " for cell ID: " << cell_id << std::endl;
+                std::cerr << "Unsupported cell type: " << cell_type << " for cell ID: " << cell_id
+                          << std::endl;
                 break;
         }
-        #undef IDX
+#undef IDX
     }
     return mesh_part;
 }

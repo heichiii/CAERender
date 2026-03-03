@@ -9,20 +9,6 @@
 
 namespace VTK
 {
-    // enum class Location
-    // {
-    //     POINT,
-    //     CELL
-    // };
-
-    // enum class Type
-    // {
-    //     SCALAR,
-    //     VECTOR,
-    //     TENSOR,
-    //     OTHER
-    // };
-
     class FieldData
     {
     public:

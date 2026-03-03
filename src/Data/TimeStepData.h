@@ -12,5 +12,9 @@ public:
     GPUData gpu_data_; // GPU数据结构，包含顶点缓冲区、物理量缓冲区等
     
     void generateGPUData();
+    Type activateField(const std::string& field_name);
+    void updateScalarBuffer();
+    void updateVectorBuffer();
+    void updateStreamlineBuffer(const std::string& field_name = "", int num_seeds = 100);
 
 };

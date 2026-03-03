@@ -11,6 +11,7 @@ public:
     ShaderProgram();
     ~ShaderProgram() = default;
     bool createFromFiles(const std::string& vertex_path, const std::string& fragment_path);
+    bool createFromFiles(const std::string& vertex_path, const std::string& fragment_path, const std::string& geometry_path);
     bool createFromSource(const std::string& vertex_source, const std::string& fragment_source);
     void bind();
     void release();
