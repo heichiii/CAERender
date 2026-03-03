@@ -103,6 +103,7 @@ private:
     QOpenGLBuffer streamline_pos_buffer_;
     QOpenGLBuffer streamline_mag_buffer_;
     QOpenGLBuffer streamline_ebo_;
+    std::unique_ptr<ShaderProgram> streamline_shader_program_;
 
 
     QMatrix4x4 model_matrix_; // 模型矩阵，包含旋转和平移

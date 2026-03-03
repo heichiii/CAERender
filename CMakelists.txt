@@ -12,6 +12,7 @@ set(CMAKE_AUTOUIC ON)
 # Qt6（注意：MinGW 编译器必须配 MinGW 版 Qt）
 find_package(Qt6 REQUIRED COMPONENTS Core Gui Widgets OpenGL OpenGLWidgets)
 find_package(OpenGL REQUIRED)
+find_package(OpenMP REQUIRED)
 
 # VTK：只找“读数据 + filter”需要的组件，避免引入 Rendering/VR/Qt 模块
 find_package(VTK REQUIRED COMPONENTS
@@ -47,5 +48,6 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   Qt6::OpenGL
   Qt6::OpenGLWidgets
   OpenGL::GL
+  OpenMP::OpenMP_CXX
   ${VTK_LIBRARIES}
 )

@@ -1,6 +1,7 @@
 #include "Renderer.h"
 #include <QDebug>
 #include <QDir>
+#include <vector>
 Renderer::Renderer()
     : gpu_data_(nullptr), vbo_(QOpenGLBuffer::VertexBuffer), normal_(QOpenGLBuffer::VertexBuffer),
       ebo_(QOpenGLBuffer::IndexBuffer), arrow_pos_buffer_(QOpenGLBuffer::VertexBuffer),
@@ -31,6 +32,13 @@ void Renderer::initialize()
         qWarning() << "Failed to create arrow shader program";
     }
 
+    // 初始化流线着色器程序
+    streamline_shader_program_ = std::make_unique<ShaderProgram>();
+    if (!streamline_shader_program_->createFromFiles("../src/Shader/streamline.vert", "../src/Shader/streamline.frag"))
+    {
+        qWarning() << "Failed to create streamline shader program";
+    }
+
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE); // 开启双面光照，禁用背面剔除
 }
@@ -55,7 +63,7 @@ void Renderer::render(const Camera& camera)
     }
     else if (mode_ == Mode::STREAMLINE)
     {
-        // renderStreamlines(camera);
+        renderStreamlines(camera);
     }
 
 }
@@ -248,6 +256,55 @@ void Renderer::updateArrowBuffers()
 }
 void Renderer::updateStreamlineBuffers()
 {
+    if (!gpu_data_ || gpu_data_->streamline_vertices_.empty())
+    {
+        qWarning() << "No streamline data available";
+        return;
+    }
+
+    size_t num_vertices = gpu_data_->streamline_vertices_.size() / 3;
+
+    qDebug() << "Updating streamline buffers:" << num_vertices << "vertices";
+    qDebug() << "Streamline magnitude range: [" << gpu_data_->streamline_magnitude_min_
+             << ", " << gpu_data_->streamline_magnitude_max_ << "]";
+
+    // 销毁旧缓冲
+    if (streamline_vao_.isCreated())
+    {
+        streamline_vao_.destroy();
+    }
+    if (streamline_pos_buffer_.isCreated())
+    {
+        streamline_pos_buffer_.destroy();
+    }
+    if (streamline_mag_buffer_.isCreated())
+    {
+        streamline_mag_buffer_.destroy();
+    }
+
+    // 创建顶点数组对象
+    streamline_vao_.create();
+    streamline_vao_.bind();
+
+    // 位置缓冲
+    streamline_pos_buffer_.create();
+    streamline_pos_buffer_.bind();
+    streamline_pos_buffer_.allocate(gpu_data_->streamline_vertices_.data(),
+                                    static_cast<int>(gpu_data_->streamline_vertices_.size() * sizeof(float)));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+
+    // 幅值缓冲
+    streamline_mag_buffer_.create();
+    streamline_mag_buffer_.bind();
+    streamline_mag_buffer_.allocate(gpu_data_->streamline_magnitudes_.data(),
+                                    static_cast<int>(gpu_data_->streamline_magnitudes_.size() * sizeof(float)));
+    glEnableVertexAttribArray(1);
+    glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), nullptr);
+
+    streamline_vao_.release();
+
+    qDebug() << "Streamline buffers updated successfully";
 }
 void Renderer::renderBasic(const Camera& camera)
 {
@@ -349,4 +406,73 @@ void Renderer::renderArrows(const Camera& camera)
 
 void Renderer::renderStreamlines(const Camera& camera)
 {
+    if (!gpu_data_ || gpu_data_->streamline_vertices_.empty() || gpu_data_->streamline_line_counts_.empty())
+    {
+        qWarning() << "No streamline data to render";
+        return;
+    }
+
+    // 确保着色器程序存在
+    if (!streamline_shader_program_ || !streamline_shader_program_->getProgram())
+    {
+        qWarning() << "Streamline shader program not available";
+        return;
+    }
+
+    streamline_shader_program_->bind();
+
+    // 获取矩阵
+    QMatrix4x4 model = camera.getModelMatrix();
+    QMatrix4x4 view = camera.getViewMatrix();
+    QMatrix4x4 projection = camera.getProjectionMatrix();
+
+    // 设置统一变量
+    streamline_shader_program_->getProgram()->setUniformValue("u_model", model);
+    streamline_shader_program_->getProgram()->setUniformValue("u_view", view);
+    streamline_shader_program_->getProgram()->setUniformValue("u_projection", projection);
+
+    streamline_shader_program_->getProgram()->setUniformValue("u_light_pos", QVector3D(5.0f, 5.0f, 15.0f));
+    streamline_shader_program_->getProgram()->setUniformValue("u_view_pos", QVector3D(0.0f, 0.0f, 10.0f));
+
+    streamline_shader_program_->getProgram()->setUniformValue("u_color_scheme", static_cast<int>(color_scheme_));
+    streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_min", gpu_data_->streamline_magnitude_min_);
+    streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_max", gpu_data_->streamline_magnitude_max_);
+
+    // 绑定VAO
+    streamline_vao_.bind();
+
+    // 绑定线条宽度
+    glLineWidth(2.0f);
+    glEnable(GL_LINE_SMOOTH);
+    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+
+    // 使用 glMultiDrawArrays 批量绘制所有流线（性能更优）
+    size_t num_streamlines = gpu_data_->streamline_line_counts_.size();
+    if (num_streamlines > 0)
+    {
+        // 转换数据类型以适应 glMultiDrawArrays 的参数要求
+        std::vector<GLint> first_array;
+        std::vector<GLsizei> count_array;
+
+        first_array.reserve(num_streamlines);
+        count_array.reserve(num_streamlines);
+
+        for (size_t i = 0; i < num_streamlines; ++i)
+        {
+            first_array.push_back(static_cast<GLint>(gpu_data_->streamline_line_starts_[i]));
+            count_array.push_back(static_cast<GLsizei>(gpu_data_->streamline_line_counts_[i]));
+        }
+
+        // 单次调用绘制所有流线（相比循环调用要快）
+        glMultiDrawArrays(GL_LINE_STRIP, first_array.data(), count_array.data(), 
+                         static_cast<GLsizei>(num_streamlines));
+    }
+
+    glDisable(GL_LINE_SMOOTH);
+    glLineWidth(1.0f);
+
+    streamline_vao_.release();
+    streamline_shader_program_->release();
+
+    qDebug() << "Rendered" << gpu_data_->streamline_line_counts_.size() << "streamlines";
 }

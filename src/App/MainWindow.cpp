@@ -406,13 +406,15 @@ void MainWindow::onVectorRenderModeChanged(int index)
     gl_widget_->setVectorRenderMode(mode);
     if(mode == VectorRenderMode::ARROW)
     {
-        gl_widget_->setRenderMode(Mode::ARROW);
+        
         gl_widget_->getCaseData()->steps_[0].updateVectorBuffer();
+        gl_widget_->setRenderMode(Mode::ARROW);
 
     }
     else if(mode == VectorRenderMode::STREAMLINE)
     {
-        gl_widget_->setRenderMode(Mode::STREAMLINE);
+        
         gl_widget_->getCaseData()->steps_[0].updateStreamlineBuffer();
+        gl_widget_->setRenderMode(Mode::STREAMLINE);
     }
 }

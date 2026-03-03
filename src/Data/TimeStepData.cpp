@@ -379,7 +379,107 @@ void TimeStepData::updateVectorBuffer()
     }
 }
 
-void TimeStepData::updateStreamlineBuffer()
+void TimeStepData::updateStreamlineBuffer(const std::string& field_name, int num_seeds)
 {
-    // TODO: 流线生成
+    if (parts_.empty()) {
+        std::cerr << "[TimeStepData::updateStreamlineBuffer] No mesh parts available." << std::endl;
+        return;
+    }
+
+    MeshPart& part = parts_[0];
+
+    // 查找矢量场
+    Field* vector_field = nullptr;
+    for (auto& field : part.cell_fields_) {
+        if ((field_name.empty() && field.type_ == Type::VECTOR) ||
+            (!field_name.empty() && field.name_ == field_name && field.type_ == Type::VECTOR)) {
+            vector_field = &field;
+            break;
+        }
+    }
+
+    if (!vector_field) {
+        std::cerr << "[TimeStepData::updateStreamlineBuffer] Vector field not found: " << field_name << std::endl;
+        return;
+    }
+
+    if (vector_field->data.empty()) {
+        std::cerr << "[TimeStepData::updateStreamlineBuffer] Vector field data is empty." << std::endl;
+        return;
+    }
+
+    std::cout << "[TimeStepData::updateStreamlineBuffer] Generating streamlines from field: " << vector_field->name_ << std::endl;
+
+    // 生成种子点（均匀采样网格顶点）
+    std::vector<QVector3D> seed_positions;
+    seed_positions.reserve(num_seeds);
+
+    if (part.vertices_.size() >= 3) {
+        int num_vertices = part.vertices_.size() / 3;
+        int step = std::max(1, num_vertices / num_seeds);
+
+        for (int i = 0; i < num_vertices; i += step) {
+            if (seed_positions.size() >= static_cast<size_t>(num_seeds)) break;
+            
+            QVector3D seed(
+                part.vertices_[i * 3],
+                part.vertices_[i * 3 + 1],
+                part.vertices_[i * 3 + 2]
+            );
+            seed_positions.push_back(seed);
+        }
+    }
+
+    std::cout << "[TimeStepData::updateStreamlineBuffer] Generated " << seed_positions.size() << " seed positions" << std::endl;
+
+    // 使用流线生成器
+    Streamline::StreamlineGenerator generator;
+    Streamline::StreamlineParams params;
+    params.dt = 0.05f;
+    params.max_length = 100.0f;
+    params.min_velocity = 0.001f;
+    params.max_iterations = 2000;
+    params.num_threads = 4;
+
+    auto streamlines = generator.generate(seed_positions, vector_field, part.vertices_, params);
+
+    std::cout << "[TimeStepData::updateStreamlineBuffer] Generated " << streamlines.size() << " streamlines" << std::endl;
+
+    // 将流线数据转换为GPU格式
+    gpu_data_.streamline_vertices_.clear();
+    gpu_data_.streamline_magnitudes_.clear();
+    gpu_data_.streamline_line_starts_.clear();
+    gpu_data_.streamline_line_counts_.clear();
+
+    gpu_data_.streamline_magnitude_min_ = std::numeric_limits<float>::max();
+    gpu_data_.streamline_magnitude_max_ = std::numeric_limits<float>::lowest();
+
+    for (const auto& streamline : streamlines) {
+        if (!streamline.valid || streamline.points.empty()) {
+            continue;
+        }
+
+        uint32_t start_index = gpu_data_.streamline_vertices_.size() / 3;
+        uint32_t point_count = streamline.points.size();
+
+        gpu_data_.streamline_line_starts_.push_back(start_index);
+        gpu_data_.streamline_line_counts_.push_back(point_count);
+
+        for (const auto& point : streamline.points) {
+            gpu_data_.streamline_vertices_.push_back(point.x);
+            gpu_data_.streamline_vertices_.push_back(point.y);
+            gpu_data_.streamline_vertices_.push_back(point.z);
+
+            gpu_data_.streamline_magnitudes_.push_back(point.magnitude);
+
+            gpu_data_.streamline_magnitude_min_ = std::min(gpu_data_.streamline_magnitude_min_, point.magnitude);
+            gpu_data_.streamline_magnitude_max_ = std::max(gpu_data_.streamline_magnitude_max_, point.magnitude);
+        }
+    }
+
+    std::cout << "[TimeStepData::updateStreamlineBuffer] Streamline buffer updated:" << std::endl;
+    std::cout << "  - Total vertices: " << gpu_data_.streamline_vertices_.size() / 3 << std::endl;
+    std::cout << "  - Total streamlines: " << gpu_data_.streamline_line_counts_.size() << std::endl;
+    std::cout << "  - Magnitude range: [" << gpu_data_.streamline_magnitude_min_ 
+              << ", " << gpu_data_.streamline_magnitude_max_ << "]" << std::endl;
 }

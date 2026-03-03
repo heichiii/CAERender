@@ -1,6 +1,7 @@
 #pragma once
 #include "MeshPart.h"
 #include "GPUData.h"
+#include "Render/StreamlineGenerator.h"
 
 class TimeStepData
 {
@@ -15,6 +16,6 @@ public:
     Type activateField(const std::string& field_name);
     void updateScalarBuffer();
     void updateVectorBuffer();
-    void updateStreamlineBuffer();
+    void updateStreamlineBuffer(const std::string& field_name = "", int num_seeds = 100);
 
 };

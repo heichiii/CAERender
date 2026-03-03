@@ -20,10 +20,10 @@ public:
     float vector_magnitude_max_;
 
     // 流线数据
-    std::vector<float> streamline_vertices_; // 流线顶点 (x, y, z)
-    std::vector<float> streamline_magnitudes_; // 流线幅值 (scalar value)
-    std::vector<uint32_t> streamline_indices_; // 流线索引
-    std::vector<uint32_t> streamline_counts_;  // 每条流线的顶点数量
+    std::vector<float> streamline_vertices_; // 所有流线的连续顶点序列 (x, y, z)
+    std::vector<float> streamline_magnitudes_; // 对应顶点的矢量幅值
+    std::vector<uint32_t> streamline_line_starts_; // 每条流线在顶点数组中的起始索引
+    std::vector<uint32_t> streamline_line_counts_;  // 每条流线的顶点数
     float streamline_magnitude_min_;
     float streamline_magnitude_max_;
 };
