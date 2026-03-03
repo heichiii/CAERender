@@ -117,6 +117,7 @@ private:
     // 私有方法
     void updateBasicBuffers();
     void updateArrowBuffers();
+    void updateStreamlineBuffers();
     void renderBasic(const Camera& camera);
     void renderArrows(const Camera& camera);
     void renderStreamlines(const Camera& camera);

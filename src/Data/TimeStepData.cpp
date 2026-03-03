@@ -378,3 +378,8 @@ void TimeStepData::updateVectorBuffer()
             << std::endl;
     }
 }
+
+void TimeStepData::updateStreamlineBuffer()
+{
+    // TODO: 流线生成
+}

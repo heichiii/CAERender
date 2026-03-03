@@ -15,5 +15,6 @@ public:
     Type activateField(const std::string& field_name);
     void updateScalarBuffer();
     void updateVectorBuffer();
+    void updateStreamlineBuffer();
 
 };

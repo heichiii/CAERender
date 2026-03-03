@@ -85,10 +85,10 @@ void GLWidget::mousePressEvent(QMouseEvent* event)
         is_rotating_ = true;
         // 每次按下鼠标时更新旋转中心
         camera_.updateRotationCenter(getScreenCenterInWorld());
-        qDebug() << "Rotation center updated at: " 
-                 << camera_.getRotationCenter().x() << ","
-                 << camera_.getRotationCenter().y() << ","
-                 << camera_.getRotationCenter().z();
+        // qDebug() << "Rotation center updated at: " 
+        //          << camera_.getRotationCenter().x() << ","
+        //          << camera_.getRotationCenter().y() << ","
+        //          << camera_.getRotationCenter().z();
     }
     else if (event->button() == Qt::MiddleButton)
     {
@@ -99,10 +99,10 @@ void GLWidget::mousePressEvent(QMouseEvent* event)
         is_zooming_ = true;
         // 每次按下右键时更新缩放中心
         camera_.updateRotationCenter(getScreenCenterInWorld());
-        qDebug() << "Zoom center updated at: " 
-                 << camera_.getRotationCenter().x() << ","
-                 << camera_.getRotationCenter().y() << ","
-                 << camera_.getRotationCenter().z();
+        // qDebug() << "Zoom center updated at: " 
+        //          << camera_.getRotationCenter().x() << ","
+        //          << camera_.getRotationCenter().y() << ","
+        //          << camera_.getRotationCenter().z();
     }
 }
 
@@ -134,11 +134,11 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* event)
     {
         is_rotating_ = false;
     }
-    else if (event->button() == Qt::RightButton)
+    else if (event->button() == Qt::MiddleButton)
     {
         is_panning_ = false;
     }
-    else if (event->button() == Qt::MiddleButton)
+    else if (event->button() == Qt::RightButton)
     {
         is_zooming_ = false;
     }
@@ -148,7 +148,7 @@ void GLWidget::wheelEvent(QWheelEvent* event)
 {
     // 每次滚轮时更新缩放中心
     camera_.updateRotationCenter(getScreenCenterInWorld());
-    camera_.zoom(event->angleDelta().y() * 0.01f);
+    camera_.zoom(event->angleDelta().y() * 0.005f);
     update();
 }
 

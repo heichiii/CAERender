@@ -104,15 +104,13 @@ void Renderer::setMode(Mode mode)
     {
         updateArrowBuffers();
     }
+    else if(mode_ == Mode::STREAMLINE)
+    {
+        updateStreamlineBuffers();
+    }
     
 }
-// {
-//     render_vector_ = render_vector;
-//     if (render_vector)
-//     {
-//         updateArrowBuffers();
-//     }
-//}
+
 void Renderer::updateBasicBuffers()
 {
     if (!gpu_data_)
@@ -248,6 +246,9 @@ void Renderer::updateArrowBuffers()
 
     arrow_vao_.release();
 }
+void Renderer::updateStreamlineBuffers()
+{
+}
 void Renderer::renderBasic(const Camera& camera)
 {
     shader_program_->bind();
@@ -344,4 +345,8 @@ void Renderer::renderArrows(const Camera& camera)
     arrow_vao_.release();
 
     arrow_shader_program_->release();
+}
+
+void Renderer::renderStreamlines(const Camera& camera)
+{
 }
