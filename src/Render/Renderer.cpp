@@ -1,14 +1,170 @@
 #include "Renderer.h"
 #include <QDebug>
 #include <QDir>
+#include <algorithm>
+#include <array>
+#include <cmath>
+#include <limits>
+#include <unordered_map>
+#include <unordered_set>
 #include <vector>
+
+namespace
+{
+struct CellKey
+{
+    int x;
+    int y;
+    int z;
+
+    bool operator==(const CellKey& other) const
+    {
+        return x == other.x && y == other.y && z == other.z;
+    }
+};
+
+struct CellKeyHash
+{
+    size_t operator()(const CellKey& key) const
+    {
+        size_t seed = 0;
+        seed ^= std::hash<int>{}(key.x) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= std::hash<int>{}(key.y) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= std::hash<int>{}(key.z) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
+    }
+};
+
+struct TriangleKeyHash
+{
+    size_t operator()(const std::array<uint32_t, 3>& triangle) const
+    {
+        size_t seed = 0;
+        seed ^= std::hash<uint32_t>{}(triangle[0]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= std::hash<uint32_t>{}(triangle[1]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        seed ^= std::hash<uint32_t>{}(triangle[2]) + 0x9e3779b9 + (seed << 6) + (seed >> 2);
+        return seed;
+    }
+};
+
+static int clampCellIndex(float value, float minValue, float step, int divisions)
+{
+    if (step <= std::numeric_limits<float>::epsilon())
+    {
+        return 0;
+    }
+
+    const float normalized = (value - minValue) / step;
+    const int idx = static_cast<int>(std::floor(normalized));
+    return std::clamp(idx, 0, divisions - 1);
+}
+
+static std::vector<uint32_t> buildClusteredIndices(const std::vector<float>& vertices,
+                                                   const std::vector<uint32_t>& indices,
+                                                   int divisionsPerAxis)
+{
+    if (vertices.size() < 9 || indices.size() < 3 || divisionsPerAxis <= 1)
+    {
+        return indices;
+    }
+
+    const size_t vertexCount = vertices.size() / 3;
+    std::vector<uint32_t> representative(vertexCount, 0);
+
+    float minX = std::numeric_limits<float>::max();
+    float minY = std::numeric_limits<float>::max();
+    float minZ = std::numeric_limits<float>::max();
+    float maxX = std::numeric_limits<float>::lowest();
+    float maxY = std::numeric_limits<float>::lowest();
+    float maxZ = std::numeric_limits<float>::lowest();
+
+    for (size_t i = 0; i < vertexCount; ++i)
+    {
+        const float x = vertices[i * 3 + 0];
+        const float y = vertices[i * 3 + 1];
+        const float z = vertices[i * 3 + 2];
+
+        minX = std::min(minX, x);
+        minY = std::min(minY, y);
+        minZ = std::min(minZ, z);
+        maxX = std::max(maxX, x);
+        maxY = std::max(maxY, y);
+        maxZ = std::max(maxZ, z);
+    }
+
+    const float stepX = (maxX - minX) / static_cast<float>(divisionsPerAxis);
+    const float stepY = (maxY - minY) / static_cast<float>(divisionsPerAxis);
+    const float stepZ = (maxZ - minZ) / static_cast<float>(divisionsPerAxis);
+
+    std::unordered_map<CellKey, uint32_t, CellKeyHash> cellRepresentative;
+    cellRepresentative.reserve(vertexCount / 2);
+
+    for (size_t i = 0; i < vertexCount; ++i)
+    {
+        const float x = vertices[i * 3 + 0];
+        const float y = vertices[i * 3 + 1];
+        const float z = vertices[i * 3 + 2];
+
+        const CellKey key{clampCellIndex(x, minX, stepX, divisionsPerAxis),
+                          clampCellIndex(y, minY, stepY, divisionsPerAxis),
+                          clampCellIndex(z, minZ, stepZ, divisionsPerAxis)};
+
+        const auto it = cellRepresentative.find(key);
+        if (it == cellRepresentative.end())
+        {
+            const auto rep = static_cast<uint32_t>(i);
+            representative[i] = rep;
+            cellRepresentative.emplace(key, rep);
+        }
+        else
+        {
+            representative[i] = it->second;
+        }
+    }
+
+    std::vector<uint32_t> simplified;
+    simplified.reserve(indices.size());
+    std::unordered_set<std::array<uint32_t, 3>, TriangleKeyHash> uniqueTriangles;
+    uniqueTriangles.reserve(indices.size() / 3);
+
+    for (size_t i = 0; i + 2 < indices.size(); i += 3)
+    {
+        const uint32_t a = representative[indices[i + 0]];
+        const uint32_t b = representative[indices[i + 1]];
+        const uint32_t c = representative[indices[i + 2]];
+
+        if (a == b || b == c || a == c)
+        {
+            continue;
+        }
+
+        std::array<uint32_t, 3> canonical{a, b, c};
+        std::sort(canonical.begin(), canonical.end());
+        if (!uniqueTriangles.insert(canonical).second)
+        {
+            continue;
+        }
+
+        simplified.push_back(a);
+        simplified.push_back(b);
+        simplified.push_back(c);
+    }
+
+    if (simplified.empty())
+    {
+        return indices;
+    }
+
+    return simplified;
+}
+} // namespace
 Renderer::Renderer()
     : gpu_data_(nullptr), vbo_(QOpenGLBuffer::VertexBuffer), normal_(QOpenGLBuffer::VertexBuffer),
       ebo_(QOpenGLBuffer::IndexBuffer), arrow_pos_buffer_(QOpenGLBuffer::VertexBuffer),
       arrow_dir_buffer_(QOpenGLBuffer::VertexBuffer),
       arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), mesh_render_mode_(MeshRenderMode::SOLID),
       color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false),
-      vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC)
+      vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
 // render_vector_(false)
 {
 }
@@ -182,11 +338,12 @@ void Renderer::updateBasicBuffers()
     }
     glEnableVertexAttribArray(2);
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), nullptr);
+    rebuildLODIndices();
+
     // ebo
     ebo_.create();
     ebo_.bind();
-    ebo_.allocate(gpu_data_->indices_.data(),
-                  static_cast<int>(gpu_data_->indices_.size() * sizeof(uint32_t)));
+    applyLODToIndexBuffer();
 
 
     vao_.release();
@@ -334,25 +491,27 @@ void Renderer::renderBasic(const Camera& camera)
 
     vao_.bind();
 
+    const size_t lod_index_count = active_lod_index_count_;
+
     // 根据渲染模式选择不同的绘制方式
     switch (mesh_render_mode_)
     {
         case MeshRenderMode::SOLID:
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(gpu_data_->indices_.size()),
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(lod_index_count),
                            GL_UNSIGNED_INT, nullptr);
             break;
 
         case MeshRenderMode::POINT_CLOUD:
             glEnable(GL_PROGRAM_POINT_SIZE); // 启用着色器控制的点大小
-            glDrawElements(GL_POINTS, static_cast<GLsizei>(gpu_data_->indices_.size()),
+            glDrawElements(GL_POINTS, static_cast<GLsizei>(lod_index_count),
                            GL_UNSIGNED_INT, nullptr);
             glDisable(GL_PROGRAM_POINT_SIZE);
             break;
 
         case MeshRenderMode::WIREFRAME:
             glPolygonMode(GL_FRONT_AND_BACK, GL_LINE);
-            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(gpu_data_->indices_.size()),
+            glDrawElements(GL_TRIANGLES, static_cast<GLsizei>(lod_index_count),
                            GL_UNSIGNED_INT, nullptr);
             glPolygonMode(GL_FRONT_AND_BACK, GL_FILL); // 恢复默认
             break;
@@ -475,4 +634,77 @@ void Renderer::renderStreamlines(const Camera& camera)
     streamline_shader_program_->release();
 
     qDebug() << "Rendered" << gpu_data_->streamline_line_counts_.size() << "streamlines";
+}
+
+void Renderer::setLODLevel(LODLevel level)
+{
+    if (lod_level_ == level)
+    {
+        return;
+    }
+
+    lod_level_ = level;
+    applyLODToIndexBuffer();
+}
+
+void Renderer::rebuildLODIndices()
+{
+    if (!gpu_data_ || gpu_data_->indices_.empty())
+    {
+        lod_high_indices_.clear();
+        lod_medium_indices_.clear();
+        lod_low_indices_.clear();
+        active_lod_index_count_ = 0;
+        return;
+    }
+
+    lod_high_indices_ = gpu_data_->indices_;
+    lod_medium_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 36);
+    lod_low_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 20);
+
+    if (lod_medium_indices_.size() > lod_high_indices_.size())
+    {
+        lod_medium_indices_ = lod_high_indices_;
+    }
+    if (lod_low_indices_.size() > lod_medium_indices_.size())
+    {
+        lod_low_indices_ = lod_medium_indices_;
+    }
+}
+
+void Renderer::applyLODToIndexBuffer()
+{
+    if (!gpu_data_ || !vao_.isCreated() || !ebo_.isCreated())
+    {
+        return;
+    }
+
+    const std::vector<uint32_t>* activeIndices = &lod_high_indices_;
+    switch (lod_level_)
+    {
+        case LODLevel::HIGH:
+            activeIndices = &lod_high_indices_;
+            break;
+        case LODLevel::MEDIUM:
+            activeIndices = &lod_medium_indices_;
+            break;
+        case LODLevel::LOW:
+            activeIndices = &lod_low_indices_;
+            break;
+        default:
+            activeIndices = &lod_high_indices_;
+            break;
+    }
+
+    if (activeIndices->empty())
+    {
+        activeIndices = &lod_high_indices_;
+    }
+
+    active_lod_index_count_ = activeIndices->size();
+
+    vao_.bind();
+    ebo_.bind();
+    ebo_.allocate(activeIndices->data(), static_cast<int>(activeIndices->size() * sizeof(uint32_t)));
+    vao_.release();
 }

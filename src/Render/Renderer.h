@@ -7,6 +7,7 @@
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLVertexArrayObject>
+#include <vector>
 
 enum class Mode
 {
@@ -39,6 +40,14 @@ enum class VectorRenderMode
     STREAMLINE // 流线渲染（待实现）
 };
 
+// LOD级别枚举
+enum class LODLevel
+{
+    HIGH,   // 高细节 - 距离 < 15
+    MEDIUM, // 中细节 - 距离 15-50
+    LOW     // 低细节 - 距离 > 50
+};
+
 class Renderer : public QOpenGLFunctions_4_5_Core
 {
 public:
@@ -56,6 +65,10 @@ public:
     void setVectorRenderMode(VectorRenderMode mode);
     
     void setMode(Mode mode);
+    
+    // LOD控制
+    void setLODLevel(LODLevel level);
+    LODLevel getLODLevel() const { return lod_level_; }
 
     Mode getMode() const
     {
@@ -114,8 +127,17 @@ private:
     ColorScheme color_scheme_;
     bool use_field_coloring_;
     VectorRenderMode vector_render_mode_;
+    LODLevel lod_level_;
+    
+    // LOD数据
+    std::vector<uint32_t> lod_high_indices_;
+    std::vector<uint32_t> lod_medium_indices_;
+    std::vector<uint32_t> lod_low_indices_;
+    size_t active_lod_index_count_ = 0;
 
     // 私有方法
+    void rebuildLODIndices();
+    void applyLODToIndexBuffer();
     void updateBasicBuffers();
     void updateArrowBuffers();
     void updateStreamlineBuffers();

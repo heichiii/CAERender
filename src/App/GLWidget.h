@@ -4,6 +4,8 @@
 #include <QMouseEvent>
 #include <QWheelEvent>
 #include <QElapsedTimer>
+#include <QVector3D>
+#include <QQuaternion>
 #include "Data/CaseData.h"
 #include "Render/Renderer.h"
 #include "Render/Camera.h"
@@ -28,9 +30,15 @@ public:
     
     // 获取帧率
     float getFPS() const { return current_fps_; }
+    
+    // LOD控制
+    void updateLOD();
+    void setLODEnabled(bool enabled);
+    bool isLODEnabled() const { return lod_enabled_; }
 
 signals:
     void fpsUpdated(float fps);
+    void lodLevelChanged(LODLevel level);
 
 private:
     void initializeGL() override;
@@ -56,6 +64,10 @@ private:
     QElapsedTimer fps_timer_;
     int frame_count_ = 0;
     float current_fps_ = 0.0f;
+    
+    // 操作状态标志
+    bool is_interacting_ = false;  // 用户正在操作（鼠标按下或滚轮）
+    bool lod_enabled_ = true;  // LOD功能是否启用
 
     // 计算屏幕中心作为旋转中心
     QVector3D getScreenCenterInWorld() const;

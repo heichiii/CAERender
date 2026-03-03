@@ -27,6 +27,10 @@ public:
 
     // 窗口大小改变时更新投影矩阵
     void setAspectRatio(float aspect_ratio) { aspect_ratio_ = aspect_ratio; }
+    
+    // LOD相关：获取相机到目标的距离
+    float getDistanceToTarget() const { return distance_to_target_; }
+    QVector3D getPosition() const { return position_; }
 
 private:
     void updatePosition();

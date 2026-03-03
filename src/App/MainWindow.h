@@ -8,6 +8,7 @@
 #include <QDockWidget>
 #include <QLabel>
 #include <QComboBox>
+#include <QCheckBox>
 #include <string>
 class MainWindow : public QMainWindow
 {
@@ -36,6 +37,7 @@ private:
     QLabel* file_path_label_;
     QLabel* info_label_;
     QLabel* fps_label_;
+    QLabel* lod_label_;
     std::string current_file_path_;
     
     // render options widgets
@@ -46,6 +48,7 @@ private:
     QComboBox* color_scheme_combo_;
     QLabel* vector_render_mode_label_;
     QComboBox* vector_render_mode_combo_;
+    QCheckBox* lod_enable_checkbox_;
     
 private slots:
     void openFile();
@@ -55,5 +58,7 @@ private slots:
     void onColorSchemeChanged(int index);
     void onVectorRenderModeChanged(int index);
     void onFpsUpdated(float fps);
+    void onLodLevelChanged(LODLevel level);
+    void onLodCheckBoxToggled(bool checked);
 
 };

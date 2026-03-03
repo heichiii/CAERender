@@ -1,9 +1,10 @@
 #include "GLWidget.h"
 #include "Loader/LoaderFactory.h"
+#include <QDebug>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 
-GLWidget::GLWidget(QWidget* parent): QOpenGLWidget(parent)
+GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent)
 {
 }
 void GLWidget::loadFile(const std::string& filename)
@@ -11,7 +12,8 @@ void GLWidget::loadFile(const std::string& filename)
     auto loader = LoaderFactory::createLoader(filename);
     if (!loader)
     {
-        qWarning() << "[GLWidget::loadFile] :  Unsupported file format:" << QString::fromStdString(filename);
+        qWarning() << "[GLWidget::loadFile] :  Unsupported file format:"
+                   << QString::fromStdString(filename);
         return;
     }
 
@@ -29,7 +31,7 @@ void GLWidget::loadFile(const std::string& filename)
 
 void GLWidget::setMesh(const GPUData* p_gpu_data)
 {
-    if(!p_gpu_data)
+    if (!p_gpu_data)
     {
         qWarning() << "Invalid GPU data pointer";
         return;
@@ -52,21 +54,24 @@ void GLWidget::initializeGL()
         qInfo() << "OpenGL Version:" << reinterpret_cast<const char*>(version);
     }
     renderer_.initialize();
-    
+
     // 初始化旋转中心为原点
     camera_.updateRotationCenter(QVector3D(0.0f, 0.0f, 0.0f));
-    
+
     // 初始化帧率计时器
     fps_timer_.start();
 }
 
 void GLWidget::paintGL()
 {
+    // 根据操作状态更新LOD级别
+    updateLOD();
+
     renderer_.render(camera_);
-    
+
     // 更新帧率计算
     frame_count_++;
-    if (fps_timer_.elapsed() >= 1000)  // 每1秒更新一次FPS
+    if (fps_timer_.elapsed() >= 1000) // 每1秒更新一次FPS
     {
         current_fps_ = frame_count_ * 1000.0f / fps_timer_.elapsed();
         frame_count_ = 0;
@@ -91,17 +96,13 @@ QVector3D GLWidget::getScreenCenterInWorld() const
 void GLWidget::mousePressEvent(QMouseEvent* event)
 {
     last_mouse_pos_ = event->pos();
-    mouse_press_pos_ = event->pos();  // 记录按下位置
-    
+    mouse_press_pos_ = event->pos(); // 记录按下位置
+
     if (event->button() == Qt::LeftButton)
     {
         is_rotating_ = true;
         // 每次按下鼠标时更新旋转中心
         camera_.updateRotationCenter(getScreenCenterInWorld());
-        // qDebug() << "Rotation center updated at: " 
-        //          << camera_.getRotationCenter().x() << ","
-        //          << camera_.getRotationCenter().y() << ","
-        //          << camera_.getRotationCenter().z();
     }
     else if (event->button() == Qt::MiddleButton)
     {
@@ -112,15 +113,13 @@ void GLWidget::mousePressEvent(QMouseEvent* event)
         is_zooming_ = true;
         // 每次按下右键时更新缩放中心
         camera_.updateRotationCenter(getScreenCenterInWorld());
-        // qDebug() << "Zoom center updated at: " 
-        //          << camera_.getRotationCenter().x() << ","
-        //          << camera_.getRotationCenter().y() << ","
-        //          << camera_.getRotationCenter().z();
     }
 }
 
 void GLWidget::mouseMoveEvent(QMouseEvent* event)
 {
+    // 设置操作标志
+    is_interacting_ = true;
     QPoint delta = event->pos() - last_mouse_pos_;
     last_mouse_pos_ = event->pos();
 
@@ -155,6 +154,12 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* event)
     {
         is_zooming_ = false;
     }
+
+
+    is_interacting_ = false;
+    renderer_.setLODLevel(LODLevel::HIGH);
+    emit lodLevelChanged(LODLevel::HIGH);
+    update();
 }
 
 void GLWidget::wheelEvent(QWheelEvent* event)
@@ -197,6 +202,49 @@ void GLWidget::setRenderMode(Mode mode)
 {
     makeCurrent();
     renderer_.setMode(mode);
-    
+
     update();
+}
+
+void GLWidget::updateLOD()
+{
+    // 如果LOD功能已禁用，始终使用完整LOD
+    if (!lod_enabled_)
+    {
+        if (renderer_.getLODLevel() != LODLevel::HIGH)
+        {
+            renderer_.setLODLevel(LODLevel::HIGH);
+            emit lodLevelChanged(LODLevel::HIGH);
+        }
+        return;
+    }
+    
+    // 如果用户正在操作（鼠标按下），使用简化LOD
+    if (is_interacting_)
+    {
+        LODLevel new_level = LODLevel::MEDIUM; // 操作时用中细节
+
+        if (new_level != renderer_.getLODLevel())
+        {
+            renderer_.setLODLevel(new_level);
+            emit lodLevelChanged(new_level);
+        }
+    }
+}
+
+void GLWidget::setLODEnabled(bool enabled)
+{
+    lod_enabled_ = enabled;
+    if (enabled)
+    {
+        // 启用后更新LOD
+        update();
+    }
+    else
+    {
+        // 禁用后切到完整LOD
+        renderer_.setLODLevel(LODLevel::HIGH);
+        emit lodLevelChanged(LODLevel::HIGH);
+        update();
+    }
 }

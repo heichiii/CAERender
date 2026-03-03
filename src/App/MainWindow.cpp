@@ -50,6 +50,15 @@ void MainWindow::setupUI()
     mesh_group->setLayout(mesh_layout);
     render_layout->addWidget(mesh_group);
 
+    // LOD控制
+    auto* lod_group = new QGroupBox("LOD优化");
+    auto* lod_layout = new QVBoxLayout();
+    lod_enable_checkbox_ = new QCheckBox("启用LOD");
+    lod_enable_checkbox_->setChecked(true);
+    lod_layout->addWidget(lod_enable_checkbox_);
+    lod_group->setLayout(lod_layout);
+    render_layout->addWidget(lod_group);
+
     // 场量选择
     auto* field_group = new QGroupBox("场量");
     auto* field_layout = new QVBoxLayout();
@@ -104,6 +113,9 @@ void MainWindow::setupUI()
     connect(mesh_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onMeshRenderModeChanged);
 
+    // 连接LOD复选框
+    connect(lod_enable_checkbox_, &QCheckBox::toggled, this, &MainWindow::onLodCheckBoxToggled);
+
     // 连接配色方案
     connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onColorSchemeChanged);
@@ -139,14 +151,20 @@ void MainWindow::setupUI()
 
     addDockWidget(Qt::RightDockWidgetArea, properties_dock_);
     
-    // 创建 Status Bar 显示帧率
+    // 创建 Status Bar 显示帧率和LOD级别
     fps_label_ = new QLabel("FPS: 0.0", this);
     fps_label_->setAlignment(Qt::AlignLeft);
     fps_label_->setMinimumWidth(100);
     statusBar()->addWidget(fps_label_);
     
-    // 连接GLWidget的帧率信号
+    lod_label_ = new QLabel("LOD: HIGH", this);
+    lod_label_->setAlignment(Qt::AlignLeft);
+    lod_label_->setMinimumWidth(120);
+    statusBar()->addWidget(lod_label_);
+    
+    // 连接GLWidget的信号
     connect(gl_widget_, &GLWidget::fpsUpdated, this, &MainWindow::onFpsUpdated);
+    connect(gl_widget_, &GLWidget::lodLevelChanged, this, &MainWindow::onLodLevelChanged);
 }
 
 void MainWindow::setupMenus()
@@ -432,4 +450,30 @@ void MainWindow::onVectorRenderModeChanged(int index)
 void MainWindow::onFpsUpdated(float fps)
 {
     fps_label_->setText(QString::asprintf("FPS: %.1f", fps));
+}
+
+void MainWindow::onLodLevelChanged(LODLevel level)
+{
+    QString levelText;
+    switch (level)
+    {
+        case LODLevel::HIGH:
+            levelText = "HIGH (100%)";
+            break;
+        case LODLevel::MEDIUM:
+            levelText = "MEDIUM (50%)";
+            break;
+        case LODLevel::LOW:
+            levelText = "LOW (25%)";
+            break;
+        default:
+            levelText = "UNKNOWN";
+            break;
+    }
+    lod_label_->setText(QString("LOD: %1").arg(levelText));
+}
+
+void MainWindow::onLodCheckBoxToggled(bool checked)
+{
+    gl_widget_->setLODEnabled(checked);
 }
