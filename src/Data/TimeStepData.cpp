@@ -383,7 +383,7 @@ void TimeStepData::updateVectorBuffer()
     }
 }
 
-void TimeStepData::updateStreamlineBuffer(const std::string& field_name, int num_seeds)
+void TimeStepData::updateStreamlineBuffer(int num_seeds)
 {
     if (parts_.empty()) {
         std::cerr << "[TimeStepData::updateStreamlineBuffer] No mesh parts available." << std::endl;
@@ -391,19 +391,10 @@ void TimeStepData::updateStreamlineBuffer(const std::string& field_name, int num
     }
 
     MeshPart& part = parts_[0];
-
-    // 查找矢量场
-    Field* vector_field = nullptr;
-    for (auto& field : part.cell_fields_) {
-        if ((field_name.empty() && field.type_ == Type::VECTOR) ||
-            (!field_name.empty() && field.name_ == field_name && field.type_ == Type::VECTOR)) {
-            vector_field = &field;
-            break;
-        }
-    }
+    Field* vector_field = part.active_field_;
 
     if (!vector_field) {
-        std::cerr << "[TimeStepData::updateStreamlineBuffer] Vector field not found: " << field_name << std::endl;
+        std::cerr << "[TimeStepData::updateStreamlineBuffer] Vector field not found: " << vector_field->name_ << std::endl;
         return;
     }
 

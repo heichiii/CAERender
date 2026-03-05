@@ -4,7 +4,7 @@
 #include <omp.h>
 #include <limits>
 #include <QDebug>
-
+#include "TestTool/Profiler.h"
 namespace Streamline {
 
 StreamlineGenerator::StreamlineGenerator() = default;
@@ -17,6 +17,7 @@ std::vector<Streamline> StreamlineGenerator::generate(
     const std::vector<float>& mesh_vertices,
     const StreamlineParams& params)
 {
+    PROFILE_CODE
     if (!vector_field || seed_positions.empty() || mesh_vertices.empty()) {
         qWarning() << "StreamlineGenerator: Invalid input data";
         return {};

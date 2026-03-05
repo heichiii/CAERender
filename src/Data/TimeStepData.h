@@ -15,6 +15,6 @@ public:
     Type activateField(const std::string& field_name);
     void updateScalarBuffer();
     void updateVectorBuffer();
-    void updateStreamlineBuffer(const std::string& field_name = "", int num_seeds = 100);
+    void updateStreamlineBuffer(int num_seeds);
 
 };

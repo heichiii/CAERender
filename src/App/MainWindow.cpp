@@ -442,7 +442,7 @@ void MainWindow::onVectorRenderModeChanged(int index)
     else if(mode == VectorRenderMode::STREAMLINE)
     {
         
-        gl_widget_->getCaseData()->steps_[0].updateStreamlineBuffer();
+        gl_widget_->getCaseData()->steps_[0].updateStreamlineBuffer(10);
         gl_widget_->setRenderMode(Mode::STREAMLINE);
     }
 }
