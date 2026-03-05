@@ -2,6 +2,7 @@
 #include <QApplication>
 #include <QString>
 #include "TestTool/debug.h"
+// #include "TestTool/CallCounter.h"
 
 #ifdef _WIN32
 extern "C" {
@@ -13,8 +14,8 @@ extern "C" {
     
     #elif defined(PREFER_INTEGRATED_GPU)
         // 告诉 NVIDIA/AMD 驱动程序使用集成显卡
-        __declspec(dllexport) unsigned long NvOptimusEnablement = 0x00000000;
-        __declspec(dllexport) int AmdPowerXpressRequestHighPerformance = 0;
+        __declspec(dllexport) volatile unsigned long NvOptimusEnablement = 0x00000000;
+        __declspec(dllexport) volatile int AmdPowerXpressRequestHighPerformance = 0;
     #endif
 }
 #endif
@@ -22,6 +23,8 @@ extern "C" {
 
 int main(int argc, char* argv[])
 {
+    // COUNT_FUNCTION_CALL
+    // TestTool::AutoDumpCallStats autoDumpCallStats;
 
     QApplication app(argc, argv);
     MainWindow window;

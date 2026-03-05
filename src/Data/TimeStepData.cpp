@@ -434,7 +434,7 @@ void TimeStepData::updateStreamlineBuffer(int num_seeds)
     params.max_length = 100.0f;
     params.min_velocity = 0.001f;
     params.max_iterations = 2000;
-    params.num_threads = 4;
+    params.num_threads = 16;
 
     auto streamlines = generator.generate(seed_positions, vector_field, part.vertices_, params);
 

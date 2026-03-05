@@ -632,8 +632,6 @@ void Renderer::renderStreamlines(const Camera& camera)
 
     streamline_vao_.release();
     streamline_shader_program_->release();
-
-    qDebug() << "Rendered" << gpu_data_->streamline_line_counts_.size() << "streamlines";
 }
 
 void Renderer::setLODLevel(LODLevel level)
