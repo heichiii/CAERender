@@ -126,10 +126,36 @@ namespace Streamline
         QVector3D getLocalCoordinates(const QVector3D& point,
                                       const std::vector<QVector3D>& cell_vertices);
 
+        // ==================== 网格索引（加速最近邻查询）====================
+
+        /**
+         * @brief 构建统一网格索引用于加速最近邻查询
+         * @param mesh_vertices 网格顶点坐标
+         * @param spacing 网格单元大小（建议为平均顶点间距的2-3倍）
+         */
+        void buildSpatialGrid(const std::vector<float>& mesh_vertices, float spacing = -1.0f);
+
+        /**
+         * @brief 使用网格索引查询最近的K个顶点
+         * @param pos 查询位置
+         * @param k 返回的最近邻数量
+         * @param mesh_vertices 网格顶点坐标
+         * @return (距离, 顶点索引)对的向量，按距离排序
+         */
+        std::vector<std::pair<float, int>> getNearestVertices(
+            const QVector3D& pos, int k, const std::vector<float>& mesh_vertices) const;
+
         // 缓存网格边界用于快速检查
         QVector3D mesh_min_;
         QVector3D mesh_max_;
         bool bounds_initialized_ = false;
+
+        // 网格索引相关成员变量
+        std::vector<std::vector<int>> grid_cells_;      // 网格单元 -> 顶点索引列表
+        int grid_dims_[3]{0, 0, 0};                     // 网格维度 [nx, ny, nz]
+        float grid_spacing_ = 0.0f;                     // 网格单元大小
+        QVector3D grid_origin_;                         // 网格原点（最小角）
+        bool grid_built_ = false;                       // 网格是否已构建
     };
 
 } // namespace Streamline
