@@ -51,12 +51,11 @@ namespace Streamline
             qDebug() << "Mesh bounds: min" << mesh_min_ << "max" << mesh_max_;
         }
 
-        // 构建空间网格索引（加速最近邻查询）
-        if (!grid_built_)
+        // 构建八叉树索引（加速最近邻查询）
+        if (!octree_.isBuilt())
         {
-            buildSpatialGrid(mesh_vertices);
-            qDebug() << "Spatial grid built with dims" << grid_dims_[0] << grid_dims_[1]
-                     << grid_dims_[2] << "spacing" << grid_spacing_;
+            octree_.build(mesh_vertices);
+            qDebug() << "Octree built with" << octree_.totalPoints() << "points";
         }
 
 // 并行生成流线
@@ -104,21 +103,21 @@ namespace Streamline
             // 停止条件1：速度过小（到达静止区域）
             if (velocity_magnitude < params.min_velocity)
             {
-                qDebug() << "Streamline stopped: velocity too small" << velocity_magnitude;
+                // qDebug() << "Streamline stopped: velocity too small" << velocity_magnitude;
                 break;
             }
 
             // 停止条件2：超出边界
             if (!isWithinBounds(current_pos, mesh_vertices))
             {
-                qDebug() << "Streamline stopped: out of bounds";
+                // qDebug() << "Streamline stopped: out of bounds";
                 break;
             }
 
             // 停止条件3：长度超限
             if (streamline.total_length > params.max_length)
             {
-                qDebug() << "Streamline stopped: max length exceeded";
+                // qDebug() << "Streamline stopped: max length exceeded";
                 break;
             }
 
@@ -137,8 +136,8 @@ namespace Streamline
         }
 
         streamline.valid = streamline.points.size() > 1;
-        qDebug() << "Generated streamline with" << streamline.points.size()
-                 << "points, length:" << streamline.total_length;
+        // qDebug() << "Generated streamline with" << streamline.points.size()
+        //          << "points, length:" << streamline.total_length;
 
         return streamline;
     }
@@ -181,8 +180,9 @@ namespace Streamline
         int num_vertices = mesh_vertices.size() / 3;
         const int K = std::min(8, num_vertices); // 使用最近的K个点（最多8个）
 
-        // 使用网格索引查询最近的K个顶点
-        auto distances = getNearestVertices(pos, K, mesh_vertices);
+        // 使用八叉树查询最近的K个顶点（返回平方距离）
+        const float pos_arr[3] = {pos.x(), pos.y(), pos.z()};
+        auto distances = octree_.findNearestK(pos_arr, K);
 
         if (distances.empty())
         {
@@ -190,8 +190,8 @@ namespace Streamline
         }
 
         // 反距离加权（IDW）插值
-        // 如果查询点恰好在顶点上（距离为0），直接返回该点的值
-        if (distances[0].first < 1e-6f)
+        // 如果查询点恰好在顶点上（平方距离近似为0），直接返回该点的值
+        if (distances[0].first < 1e-12f)
         {
             int idx = distances[0].second;
             if (idx * vector_field->num_components_ + 2 <
@@ -204,15 +204,13 @@ namespace Streamline
             }
         }
 
-        // 使用IDW插值：权重为1/距离的平方
+        // IDW插值：八叉树返回平方距离，power=2 时权重直接为 1/sq_dist
         float total_weight = 0.0f;
         QVector3D interpolated(0, 0, 0);
-        const float power = 2.0f; // 权重幂次
 
-        for (const auto& [dist, idx] : distances)
+        for (const auto& [sq_dist, idx] : distances)
         {
-            // 计算权重
-            float weight = 1.0f / std::pow(dist + 1e-6f, power);
+            float weight = 1.0f / (sq_dist + 1e-12f);
             total_weight += weight;
 
             // 获取该点的向量值
@@ -337,153 +335,6 @@ namespace Streamline
         for (int i = 0; i < 8; ++i)
         {
             result += w[i] * values[i];
-        }
-
-        return result;
-    }
-
-    // ==================== 网格索引实现 ====================
-
-    void StreamlineGenerator::buildSpatialGrid(const std::vector<float>& mesh_vertices,
-                                                float spacing)
-    {
-        if (mesh_vertices.empty())
-            return;
-
-        int num_vertices = mesh_vertices.size() / 3;
-
-        // 确定网格间距
-        if (spacing <= 0.0f)
-        {
-            // 自动计算：使得网格大约包含100-1000个单元
-            QVector3D range = mesh_max_ - mesh_min_;
-            float avg_extent = (range.x() + range.y() + range.z()) / 3.0f;
-            int target_cells_per_dim = std::max(3, static_cast<int>(std::pow(num_vertices / 10.0f, 1.0f / 3.0f)));
-            spacing = avg_extent / target_cells_per_dim;
-        }
-
-        grid_spacing_ = spacing;
-        grid_origin_ = mesh_min_;
-
-        // 计算网格维度
-        QVector3D range = mesh_max_ - mesh_min_ + QVector3D(spacing, spacing, spacing);
-        grid_dims_[0] = std::max(1, static_cast<int>(range.x() / spacing));
-        grid_dims_[1] = std::max(1, static_cast<int>(range.y() / spacing));
-        grid_dims_[2] = std::max(1, static_cast<int>(range.z() / spacing));
-
-        // 初始化网格（总单元数）
-        int total_cells = grid_dims_[0] * grid_dims_[1] * grid_dims_[2];
-        grid_cells_.resize(total_cells);
-        for (auto& cell : grid_cells_)
-        {
-            cell.clear();
-        }
-
-        // 将顶点分配到网格单元
-        for (int i = 0; i < num_vertices; ++i)
-        {
-            QVector3D vert(mesh_vertices[i * 3], mesh_vertices[i * 3 + 1],
-                          mesh_vertices[i * 3 + 2]);
-
-            // 计算顶点所在的网格单元坐标
-            int cx = static_cast<int>((vert.x() - grid_origin_.x()) / grid_spacing_);
-            int cy = static_cast<int>((vert.y() - grid_origin_.y()) / grid_spacing_);
-            int cz = static_cast<int>((vert.z() - grid_origin_.z()) / grid_spacing_);
-
-            // 边界检查和裁剪
-            cx = std::clamp(cx, 0, grid_dims_[0] - 1);
-            cy = std::clamp(cy, 0, grid_dims_[1] - 1);
-            cz = std::clamp(cz, 0, grid_dims_[2] - 1);
-
-            // 计算线性索引
-            int cell_idx = cx + cy * grid_dims_[0] + cz * grid_dims_[0] * grid_dims_[1];
-            grid_cells_[cell_idx].push_back(i);
-        }
-
-        grid_built_ = true;
-    }
-
-    std::vector<std::pair<float, int>> StreamlineGenerator::getNearestVertices(
-        const QVector3D& pos, int k, const std::vector<float>& mesh_vertices) const
-    {
-        std::vector<std::pair<float, int>> result;
-        if (!grid_built_ || grid_spacing_ <= 0.0f)
-        {
-            return result;
-        }
-
-        result.reserve(k * 2); // 预留空间
-
-        // 计算查询点所在的网格单元
-        int cx = static_cast<int>((pos.x() - grid_origin_.x()) / grid_spacing_);
-        int cy = static_cast<int>((pos.y() - grid_origin_.y()) / grid_spacing_);
-        int cz = static_cast<int>((pos.z() - grid_origin_.z()) / grid_spacing_);
-
-        // 边界检查：如果点超出网格，直接返回空
-        if (cx < 0 || cx >= grid_dims_[0] || cy < 0 || cy >= grid_dims_[1] || cz < 0 ||
-            cz >= grid_dims_[2])
-        {
-            return result;
-        }
-
-        // 逐步扩展搜索半径，直到找到足够的点
-        int search_radius = 1;
-        const int MAX_SEARCH_RADIUS = 5;
-
-        while (result.size() < k && search_radius <= MAX_SEARCH_RADIUS)
-        {
-            // 搜索当前半径的所有网格单元
-            for (int dx = -search_radius; dx <= search_radius; ++dx)
-            {
-                for (int dy = -search_radius; dy <= search_radius; ++dy)
-                {
-                    for (int dz = -search_radius; dz <= search_radius; ++dz)
-                    {
-                        // 只搜索外层的单元（避免重复）
-                        int abs_max = std::max({std::abs(dx), std::abs(dy), std::abs(dz)});
-                        if (abs_max != search_radius)
-                            continue;
-
-                        int nx = cx + dx;
-                        int ny = cy + dy;
-                        int nz = cz + dz;
-
-                        // 边界检查
-                        if (nx < 0 || nx >= grid_dims_[0] || ny < 0 || ny >= grid_dims_[1] ||
-                            nz < 0 || nz >= grid_dims_[2])
-                        {
-                            continue;
-                        }
-
-                        // 计算网格单元的线性索引
-                        int cell_idx =
-                            nx + ny * grid_dims_[0] + nz * grid_dims_[0] * grid_dims_[1];
-
-                        // 计算该单元内所有顶点到查询点的距离
-                        for (int idx : grid_cells_[cell_idx])
-                        {
-                            QVector3D vert(mesh_vertices[idx * 3], mesh_vertices[idx * 3 + 1],
-                                          mesh_vertices[idx * 3 + 2]);
-                            float dist = (pos - vert).length();
-                            result.emplace_back(dist, idx);
-                        }
-                    }
-                }
-            }
-            search_radius++;
-        }
-
-        // 排序并保留最近的K个
-        if (result.size() > 1)
-        {
-            std::partial_sort(result.begin(), result.begin() + std::min(k, (int)result.size()),
-                             result.end(),
-                             [](const auto& a, const auto& b) { return a.first < b.first; });
-        }
-
-        if (result.size() > k)
-        {
-            result.resize(k);
         }
 
         return result;
