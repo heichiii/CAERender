@@ -1,10 +1,8 @@
 #pragma once
 
 #include "Data/Field.h"
-#include "Data/MeshPart.h"
 #include "Data/Octree.h"
 #include <QVector3D>
-#include <memory>
 #include <vector>
 
 namespace Streamline
@@ -94,38 +92,11 @@ namespace Streamline
         // ==================== 辅助方法 ====================
 
         /**
-         * @brief 查找包含指定点的网格单元
-         * @param pos 点位置
-         * @param mesh_vertices 网格顶点
-         * @return 包含该点的单元索引，不存在返回-1
-         */
-        int findContainingCell(const QVector3D& pos, const std::vector<float>& mesh_vertices);
-
-        /**
          * @brief 检查点是否在网格边界内
          * @param pos 点位置
-         * @param mesh_vertices 网格顶点
          * @return 是否在边界内
          */
-        bool isWithinBounds(const QVector3D& pos, const std::vector<float>& mesh_vertices);
-
-        /**
-         * @brief 三线性插值（在网格单元内）
-         * @param local_coords 单元局部坐标 [0,1]^3
-         * @param values 8个顶点的矢量值
-         * @return 插值结果
-         */
-        QVector3D trilinearInterpolate(const QVector3D& local_coords,
-                                       const std::vector<QVector3D>& values);
-
-        /**
-         * @brief 计算点在单元中的局部坐标
-         * @param point 全局坐标
-         * @param cell_vertices 单元8个顶点坐标
-         * @return 局部坐标 [0,1]^3，超出范围返回(-1,-1,-1)
-         */
-        QVector3D getLocalCoordinates(const QVector3D& point,
-                                      const std::vector<QVector3D>& cell_vertices);
+        bool isWithinBounds(const QVector3D& pos);
 
         // ==================== 八叉树索引（加速最近邻查询）====================
 

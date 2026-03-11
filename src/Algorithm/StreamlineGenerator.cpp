@@ -79,7 +79,7 @@ namespace Streamline
         Streamline streamline;
 
         // 检查种子点有效性
-        if (!isWithinBounds(seed, mesh_vertices))
+        if (!isWithinBounds(seed))
         {
             qWarning() << "Seed point out of bounds:" << seed;
             streamline.valid = false;
@@ -108,7 +108,7 @@ namespace Streamline
             }
 
             // 停止条件2：超出边界
-            if (!isWithinBounds(current_pos, mesh_vertices))
+            if (!isWithinBounds(current_pos))
             {
                 // qDebug() << "Streamline stopped: out of bounds";
                 break;
@@ -235,109 +235,10 @@ namespace Streamline
 
     // ==================== 边界检测 ====================
 
-    bool StreamlineGenerator::isWithinBounds(const QVector3D& pos,
-                                             const std::vector<float>& mesh_vertices)
+    bool StreamlineGenerator::isWithinBounds(const QVector3D& pos)
     {
         return pos.x() >= mesh_min_.x() && pos.x() <= mesh_max_.x() && pos.y() >= mesh_min_.y() &&
                pos.y() <= mesh_max_.y() && pos.z() >= mesh_min_.z() && pos.z() <= mesh_max_.z();
-    }
-
-    int StreamlineGenerator::findContainingCell(const QVector3D& pos,
-                                                const std::vector<float>& mesh_vertices)
-    {
-        // TODO: 实现基于八叉树或网格加速结构的查找
-        // 当前简化实现：线性搜索（性能较差）
-        for (size_t i = 0; i < mesh_vertices.size() / 3; ++i)
-        {
-            QVector3D v(mesh_vertices[i * 3], mesh_vertices[i * 3 + 1], mesh_vertices[i * 3 + 2]);
-            // 检查是否在该顶点附近
-            if ((pos - v).length() < 0.1f)
-            {
-                return i;
-            }
-        }
-        return -1;
-    }
-
-    QVector3D StreamlineGenerator::getLocalCoordinates(const QVector3D& point,
-                                                       const std::vector<QVector3D>& cell_vertices)
-    {
-        // TODO: 实现牛顿法求解局部坐标
-        // 当前简化：返回单位立方体中的相对位置
-        if (cell_vertices.size() < 8)
-        {
-            return QVector3D(-1, -1, -1);
-        }
-
-        QVector3D min_v = cell_vertices[0];
-        QVector3D max_v = cell_vertices[0];
-
-        for (const auto& v : cell_vertices)
-        {
-            if (v.x() < min_v.x())
-                min_v.setX(v.x());
-            if (v.y() < min_v.y())
-                min_v.setY(v.y());
-            if (v.z() < min_v.z())
-                min_v.setZ(v.z());
-
-            if (v.x() > max_v.x())
-                max_v.setX(v.x());
-            if (v.y() > max_v.y())
-                max_v.setY(v.y());
-            if (v.z() > max_v.z())
-                max_v.setZ(v.z());
-        }
-
-        QVector3D range = max_v - min_v;
-        if (range.x() < 1e-6f || range.y() < 1e-6f || range.z() < 1e-6f)
-        {
-            return QVector3D(-1, -1, -1);
-        }
-
-        QVector3D local = (point - min_v) / range;
-
-        // 检查是否在单元内
-        if (local.x() < 0 || local.x() > 1 || local.y() < 0 || local.y() > 1 || local.z() < 0 ||
-            local.z() > 1)
-        {
-            return QVector3D(-1, -1, -1);
-        }
-
-        return local;
-    }
-
-    QVector3D StreamlineGenerator::trilinearInterpolate(const QVector3D& local_coords,
-                                                        const std::vector<QVector3D>& values)
-    {
-        if (values.size() < 8)
-        {
-            return QVector3D(0, 0, 0);
-        }
-
-        float x = local_coords.x();
-        float y = local_coords.y();
-        float z = local_coords.z();
-
-        // 8个顶点的权重（三线性基函数）
-        float w[8] = {
-            (1 - x) * (1 - y) * (1 - z), // v000
-            x * (1 - y) * (1 - z),       // v100
-            (1 - x) * y * (1 - z),       // v010
-            x * y * (1 - z),             // v110
-            (1 - x) * (1 - y) * z,       // v001
-            x * (1 - y) * z,             // v101
-            (1 - x) * y * z,             // v011
-            x * y * z                    // v111
-        };
-
-        QVector3D result(0, 0, 0);
-        for (int i = 0; i < 8; ++i)
-        {
-            result += w[i] * values[i];
-        }
-
-        return result;
     }
 
 } // namespace Streamline
