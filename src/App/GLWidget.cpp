@@ -192,12 +192,12 @@ void GLWidget::setUseFieldColoring(bool use)
     update();
 }
 
-void GLWidget::setVectorRenderMode(VectorRenderMode mode)
-{
-    makeCurrent();
-    renderer_.setVectorRenderMode(mode);
-    update();
-}
+// void GLWidget::setVectorRenderMode(VectorRenderMode mode)
+// {
+//     makeCurrent();
+//     renderer_.setVectorRenderMode(mode);
+//     update();
+// }
 
 void GLWidget::setRenderMode(Mode mode)
 {

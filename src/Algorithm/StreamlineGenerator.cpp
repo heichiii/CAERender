@@ -29,6 +29,7 @@ namespace Streamline
         // 初始化网格边界缓存
         if (!bounds_initialized_)
         {
+            //TODO: 这里可以考虑并行化计算边界
             mesh_min_ =
                 QVector3D(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(),
                           std::numeric_limits<float>::max());

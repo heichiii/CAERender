@@ -86,10 +86,10 @@ public:
     {
         return use_field_coloring_;
     }
-    VectorRenderMode getVectorRenderMode() const
-    {
-        return vector_render_mode_;
-    }
+    // VectorRenderMode getVectorRenderMode() const
+    // {
+    //     return vector_render_mode_;
+    // }
 
 private:
     // GPU数据指针
@@ -126,7 +126,7 @@ private:
     MeshRenderMode mesh_render_mode_;
     ColorScheme color_scheme_;
     bool use_field_coloring_;
-    VectorRenderMode vector_render_mode_;
+    // VectorRenderMode vector_render_mode_;
     LODLevel lod_level_;
     
     // LOD数据

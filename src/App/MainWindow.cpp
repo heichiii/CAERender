@@ -92,6 +92,8 @@ void MainWindow::setupUI()
     options_layout->addWidget(vector_render_mode_label_);
     options_layout->addWidget(vector_render_mode_combo_);
 
+    //TODO:流线渲染种子点选取、阈值设置
+
     // 默认隐藏所有场量选项
     color_scheme_label_->hide();
     color_scheme_combo_->hide();
@@ -431,7 +433,7 @@ void MainWindow::onColorSchemeChanged(int index)
 void MainWindow::onVectorRenderModeChanged(int index)
 {
     VectorRenderMode mode = static_cast<VectorRenderMode>(index);
-    gl_widget_->setVectorRenderMode(mode);
+    // gl_widget_->setVectorRenderMode(mode);
     if(mode == VectorRenderMode::ARROW)
     {
         

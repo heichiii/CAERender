@@ -429,12 +429,15 @@ void TimeStepData::updateStreamlineBuffer(int num_seeds)
 
     // 使用流线生成器
     Streamline::StreamlineGenerator generator;
-    Streamline::StreamlineParams params;
-    params.dt = 0.05f;
-    params.max_length = 200.0f;
-    params.min_velocity = 0.001f;
-    params.max_iterations = 4000;
-    params.num_threads = 16;
+    Streamline::StreamlineParams params
+    {
+        .dt = 0.05f,
+        .max_length = 200.0f,
+        .min_velocity = 0.001f,
+        .max_iterations = 4000,
+        .num_threads = 16
+    };
+    
 
     auto streamlines = generator.generate(seed_positions, vector_field, part.vertices_, params);
 

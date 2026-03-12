@@ -163,8 +163,8 @@ Renderer::Renderer()
       ebo_(QOpenGLBuffer::IndexBuffer), arrow_pos_buffer_(QOpenGLBuffer::VertexBuffer),
       arrow_dir_buffer_(QOpenGLBuffer::VertexBuffer),
       arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), mesh_render_mode_(MeshRenderMode::SOLID),
-      color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false),
-      vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
+      color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false)
+    //   vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
 // render_vector_(false)
 {
 }
@@ -252,10 +252,10 @@ void Renderer::setUseFieldColoring(bool use)
     use_field_coloring_ = use;
 }
 
-void Renderer::setVectorRenderMode(VectorRenderMode mode)
-{
-    vector_render_mode_ = mode;
-}
+// void Renderer::setVectorRenderMode(VectorRenderMode mode)
+// {
+//     vector_render_mode_ = mode;
+// }
 
 void Renderer::setMode(Mode mode)
 {
