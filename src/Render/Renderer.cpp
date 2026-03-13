@@ -11,6 +11,34 @@
 
 namespace
 {
+static const char* kPickPointVertexShader = R"(
+#version 450 core
+layout(location = 0) in vec3 a_pos;
+
+uniform mat4 u_model;
+uniform mat4 u_view;
+uniform mat4 u_projection;
+uniform float u_point_size;
+
+void main()
+{
+    gl_PointSize = u_point_size;
+    gl_Position = u_projection * u_view * u_model * vec4(a_pos, 1.0);
+}
+)";
+
+static const char* kPickPointFragmentShader = R"(
+#version 450 core
+out vec4 frag_color;
+
+uniform vec3 u_color;
+
+void main()
+{
+    frag_color = vec4(u_color, 1.0);
+}
+)";
+
 struct CellKey
 {
     int x;
@@ -162,7 +190,8 @@ Renderer::Renderer()
     : gpu_data_(nullptr), vbo_(QOpenGLBuffer::VertexBuffer), normal_(QOpenGLBuffer::VertexBuffer),
       ebo_(QOpenGLBuffer::IndexBuffer), arrow_pos_buffer_(QOpenGLBuffer::VertexBuffer),
       arrow_dir_buffer_(QOpenGLBuffer::VertexBuffer),
-      arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), mesh_render_mode_(MeshRenderMode::SOLID),
+    arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), pick_point_vbo_(QOpenGLBuffer::VertexBuffer),
+    mesh_render_mode_(MeshRenderMode::SOLID),
       color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false)
     //   vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
 // render_vector_(false)
@@ -195,6 +224,22 @@ void Renderer::initialize()
         qWarning() << "Failed to create streamline shader program";
     }
 
+    pick_point_shader_program_ = std::make_unique<ShaderProgram>();
+    if (!pick_point_shader_program_->createFromSource(kPickPointVertexShader, kPickPointFragmentShader))
+    {
+        qWarning() << "Failed to create pick point shader program";
+    }
+
+    pick_point_vao_.create();
+    pick_point_vao_.bind();
+    pick_point_vbo_.create();
+    pick_point_vbo_.bind();
+    const float init_pos[3] = {0.0f, 0.0f, 0.0f};
+    pick_point_vbo_.allocate(init_pos, static_cast<int>(sizeof(init_pos)));
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    pick_point_vao_.release();
+
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE); // 开启双面光照，禁用背面剔除
 }
@@ -220,6 +265,11 @@ void Renderer::render(const Camera& camera)
     else if (mode_ == Mode::STREAMLINE)
     {
         renderStreamlines(camera);
+    }
+
+    if (has_picked_point_)
+    {
+        renderPickedPoint(camera);
     }
 
 }
@@ -726,4 +776,48 @@ void Renderer::applyLODToIndexBuffer()
     }
     
     vao_.release();
+}
+
+void Renderer::setPickedPoint(const QVector3D& point_obj)
+{
+    picked_point_obj_ = point_obj;
+    has_picked_point_ = true;
+
+    if (!pick_point_vbo_.isCreated())
+        return;
+
+    const float pos[3] = {point_obj.x(), point_obj.y(), point_obj.z()};
+    pick_point_vao_.bind();
+    pick_point_vbo_.bind();
+    pick_point_vbo_.write(0, pos, static_cast<int>(sizeof(pos)));
+    pick_point_vao_.release();
+}
+
+void Renderer::clearPickedPoint()
+{
+    has_picked_point_ = false;
+}
+
+void Renderer::renderPickedPoint(const Camera& camera)
+{
+    if (!pick_point_shader_program_ || !pick_point_shader_program_->getProgram() ||
+        !pick_point_vao_.isCreated())
+    {
+        return;
+    }
+
+    pick_point_shader_program_->bind();
+    pick_point_shader_program_->getProgram()->setUniformValue("u_model", camera.getModelMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_view", camera.getViewMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_projection", camera.getProjectionMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_point_size", 12.0f);
+    pick_point_shader_program_->getProgram()->setUniformValue("u_color", QVector3D(1.0f, 0.1f, 0.1f));
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    pick_point_vao_.bind();
+    glDrawArrays(GL_POINTS, 0, 1);
+    pick_point_vao_.release();
+    glDisable(GL_PROGRAM_POINT_SIZE);
+
+    pick_point_shader_program_->release();
 }

@@ -70,6 +70,9 @@ public:
     void setLODLevel(LODLevel level);
     LODLevel getLODLevel() const { return lod_level_; }
 
+    void setPickedPoint(const QVector3D& point_obj);
+    void clearPickedPoint();
+
     Mode getMode() const
     {
         return mode_;
@@ -118,6 +121,13 @@ private:
     QOpenGLBuffer streamline_ebo_;
     std::unique_ptr<ShaderProgram> streamline_shader_program_;
 
+    // 拾取点高亮
+    QOpenGLVertexArrayObject pick_point_vao_;
+    QOpenGLBuffer pick_point_vbo_;
+    std::unique_ptr<ShaderProgram> pick_point_shader_program_;
+    bool has_picked_point_ = false;
+    QVector3D picked_point_obj_ = QVector3D(0.0f, 0.0f, 0.0f);
+
 
     QMatrix4x4 model_matrix_; // 模型矩阵，包含旋转和平移
 
@@ -146,5 +156,6 @@ private:
     void renderBasic(const Camera& camera);
     void renderArrows(const Camera& camera);
     void renderStreamlines(const Camera& camera);
+    void renderPickedPoint(const Camera& camera);
 
 };

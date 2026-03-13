@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <cassert>
+#include <cmath>
 #include <limits>
 
 namespace Data
@@ -49,6 +50,8 @@ void Octree::build(const std::vector<float>& vertices, int max_depth, int min_le
 
 void Octree::buildNode(OctreeNode* node, std::vector<int>& indices, int depth)
 {
+    // TODO: 可以考虑在这里进行一些优化，例如当节点内点数较多但分布非常不均匀时，强制继续细分以避免过深的树和不平衡的分布导致查询效率下降。
+
     // Leaf condition: too deep or too few points
     if (depth >= max_depth_ || static_cast<int>(indices.size()) <= min_leaf_)
     {
@@ -59,13 +62,14 @@ void Octree::buildNode(OctreeNode* node, std::vector<int>& indices, int depth)
 
     node->is_leaf = false;
 
+    //TODO:?
     float center[3];
     node->bounds.center(center);
 
     // Partition points into 8 octants
     // Bit layout: bit0=x, bit1=y, bit2=z (0=lower, 1=upper)
     std::vector<int> groups[8];
-    for (int idx : indices)
+    for (int idx : indices)    // TODO: 并行？
     {
         const float* p = vertexPtr(idx);
         int octant = 0;
@@ -172,6 +176,55 @@ std::vector<int> Octree::findInRadius(const float pos[3], float radius) const
     return result;
 }
 
+std::vector<int> Octree::findRayCandidates(const float origin[3],
+                                           const float dir_normalized[3],
+                                           float radius,
+                                           float t_max,
+                                           int max_candidates) const
+{
+    if (!root_ || radius <= 0.f || t_max <= 0.f || max_candidates <= 0)
+        return {};
+
+    const float inv_dir[3] = {
+        std::abs(dir_normalized[0]) > 1e-8f ? (1.f / dir_normalized[0]) : 0.f,
+        std::abs(dir_normalized[1]) > 1e-8f ? (1.f / dir_normalized[1]) : 0.f,
+        std::abs(dir_normalized[2]) > 1e-8f ? (1.f / dir_normalized[2]) : 0.f,
+    };
+
+    std::vector<std::pair<float, int>> hit_pairs;
+    hit_pairs.reserve(static_cast<size_t>(max_candidates) * 2);
+
+    queryRayCandidates(root_.get(), origin, dir_normalized, inv_dir,
+                       radius * radius, t_max, hit_pairs);
+
+    if (hit_pairs.empty())
+        return {};
+
+    std::sort(hit_pairs.begin(), hit_pairs.end(),
+              [](const auto& a, const auto& b)
+              {
+                  if (a.first == b.first)
+                      return a.second < b.second;
+                  return a.first < b.first;
+              });
+
+    std::vector<int> result;
+    result.reserve(static_cast<size_t>(max_candidates));
+    int last_idx = -1;
+    for (const auto& [t, idx] : hit_pairs)
+    {
+        (void)t;
+        if (idx == last_idx)
+            continue;
+        result.push_back(idx);
+        last_idx = idx;
+        if (static_cast<int>(result.size()) >= max_candidates)
+            break;
+    }
+
+    return result;
+}
+
 void Octree::queryRadius(const OctreeNode* node, const float pos[3],
                          float sq_radius, std::vector<int>& result) const
 {
@@ -193,6 +246,86 @@ void Octree::queryRadius(const OctreeNode* node, const float pos[3],
     {
         if (node->children[o])
             queryRadius(node->children[o].get(), pos, sq_radius, result);
+    }
+}
+
+bool Octree::intersectRayAABB(const Bounds3& bounds,
+                              const float origin[3],
+                              const float dir_normalized[3],
+                              const float inv_dir[3],
+                              float t_max)
+{
+    float t_min = 0.f;
+    float t_hit_max = t_max;
+
+    for (int axis = 0; axis < 3; ++axis)
+    {
+        if (std::abs(dir_normalized[axis]) < 1e-8f)
+        {
+            if (origin[axis] < bounds.min[axis] || origin[axis] > bounds.max[axis])
+                return false;
+            continue;
+        }
+
+        float t1 = (bounds.min[axis] - origin[axis]) * inv_dir[axis];
+        float t2 = (bounds.max[axis] - origin[axis]) * inv_dir[axis];
+        if (t1 > t2) std::swap(t1, t2);
+
+        t_min = std::max(t_min, t1);
+        t_hit_max = std::min(t_hit_max, t2);
+        if (t_min > t_hit_max)
+            return false;
+    }
+
+    return t_hit_max >= 0.f;
+}
+
+void Octree::queryRayCandidates(const OctreeNode* node,
+                                const float origin[3],
+                                const float dir_normalized[3],
+                                const float inv_dir[3],
+                                float sq_radius,
+                                float t_max,
+                                std::vector<std::pair<float, int>>& result) const
+{
+    if (!node)
+        return;
+
+    if (!intersectRayAABB(node->bounds, origin, dir_normalized, inv_dir, t_max))
+        return;
+
+    if (node->is_leaf)
+    {
+        for (int idx : node->indices)
+        {
+            const float* p = vertexPtr(idx);
+            const float vx = p[0] - origin[0];
+            const float vy = p[1] - origin[1];
+            const float vz = p[2] - origin[2];
+            const float t = vx * dir_normalized[0] + vy * dir_normalized[1] + vz * dir_normalized[2];
+
+            if (t < 0.f || t > t_max)
+                continue;
+
+            const float cx = origin[0] + dir_normalized[0] * t;
+            const float cy = origin[1] + dir_normalized[1] * t;
+            const float cz = origin[2] + dir_normalized[2] * t;
+            const float dx = p[0] - cx;
+            const float dy = p[1] - cy;
+            const float dz = p[2] - cz;
+            const float sq_perp = dx * dx + dy * dy + dz * dz;
+
+            if (sq_perp <= sq_radius)
+                result.push_back({t, idx});
+        }
+        return;
+    }
+
+    for (int o = 0; o < 8; ++o)
+    {
+        if (node->children[o])
+            queryRayCandidates(node->children[o].get(), origin, dir_normalized,
+                               inv_dir, sq_radius, t_max, result);
     }
 }
 

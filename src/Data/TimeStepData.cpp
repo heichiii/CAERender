@@ -431,7 +431,7 @@ void TimeStepData::updateStreamlineBuffer(int num_seeds)
     Streamline::StreamlineGenerator generator;
     Streamline::StreamlineParams params
     {
-        .dt = 0.05f,
+        .dt = 0.02f,
         .max_length = 200.0f,
         .min_velocity = 0.001f,
         .max_iterations = 4000,

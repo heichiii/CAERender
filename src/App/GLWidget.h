@@ -7,8 +7,13 @@
 #include <QVector3D>
 #include <QQuaternion>
 #include "Data/CaseData.h"
+#include "Data/Octree.h"
 #include "Render/Renderer.h"
 #include "Render/Camera.h"
+
+#include <cstdint>
+#include <vector>
+
 class GLWidget: public QOpenGLWidget
 {
     Q_OBJECT
@@ -73,4 +78,16 @@ private:
 
     // 计算屏幕中心作为旋转中心
     QVector3D getScreenCenterInWorld() const;
+
+    void rebuildPickingCache(const GPUData* p_gpu_data);
+    bool screenPointToObjectRay(const QPoint& pos, QVector3D& ray_origin_obj,
+                                QVector3D& ray_dir_obj) const;
+    bool pickAtScreenPos(const QPoint& pos);
+
+    Data::Octree pick_octree_;
+    const GPUData* pick_gpu_data_ = nullptr;
+    std::vector<std::vector<uint32_t>> vertex_to_triangles_;
+    bool has_pick_cache_ = false;
+    float pick_query_radius_ = 0.01f;
+    float pick_ray_tmax_ = 10000.0f;
 };

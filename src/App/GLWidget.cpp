@@ -3,6 +3,51 @@
 #include <QDebug>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QVector4D>
+
+#include <algorithm>
+#include <cmath>
+#include <limits>
+#include <unordered_set>
+
+namespace
+{
+constexpr float kRayEpsilon = 1e-6f;
+
+bool rayTriangleIntersect(const QVector3D& ray_origin,
+                          const QVector3D& ray_dir,
+                          const QVector3D& v0,
+                          const QVector3D& v1,
+                          const QVector3D& v2,
+                          float& t_out)
+{
+    const QVector3D edge1 = v1 - v0;
+    const QVector3D edge2 = v2 - v0;
+    const QVector3D pvec = QVector3D::crossProduct(ray_dir, edge2);
+    const float det = QVector3D::dotProduct(edge1, pvec);
+
+    if (std::abs(det) < kRayEpsilon)
+        return false;
+
+    const float inv_det = 1.0f / det;
+    const QVector3D tvec = ray_origin - v0;
+    const float u = QVector3D::dotProduct(tvec, pvec) * inv_det;
+    if (u < 0.0f || u > 1.0f)
+        return false;
+
+    const QVector3D qvec = QVector3D::crossProduct(tvec, edge1);
+    const float v = QVector3D::dotProduct(ray_dir, qvec) * inv_det;
+    if (v < 0.0f || (u + v) > 1.0f)
+        return false;
+
+    const float t = QVector3D::dotProduct(edge2, qvec) * inv_det;
+    if (t <= kRayEpsilon)
+        return false;
+
+    t_out = t;
+    return true;
+}
+} // namespace
 
 GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent)
 {
@@ -38,6 +83,7 @@ void GLWidget::setMesh(const GPUData* p_gpu_data)
     }
     makeCurrent();
     renderer_.setMesh(p_gpu_data);
+    rebuildPickingCache(p_gpu_data);
     update(); // 触发重绘
 }
 
@@ -145,6 +191,13 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
     {
+        const QPoint release_pos = event->pos();
+        const int move_distance = (release_pos - mouse_press_pos_).manhattanLength();
+        constexpr int kClickThreshold = 4;
+        if (move_distance <= kClickThreshold)
+        {
+            pickAtScreenPos(release_pos);
+        }
         is_rotating_ = false;
     }
     else if (event->button() == Qt::MiddleButton)
@@ -266,4 +319,196 @@ void GLWidget::setLODEnabled(bool enabled)
         emit lodLevelChanged(LODLevel::HIGH);
         update();
     }
+}
+
+void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)
+{
+    pick_octree_.clear();
+    pick_gpu_data_ = nullptr;
+    vertex_to_triangles_.clear();
+    has_pick_cache_ = false;
+    pick_query_radius_ = 0.01f;
+    pick_ray_tmax_ = 10000.0f;
+    renderer_.clearPickedPoint();
+
+    if (!p_gpu_data || p_gpu_data->surface_vertices_.empty() || p_gpu_data->indices_.empty())
+    {
+        return;
+    }
+
+    pick_octree_.build(p_gpu_data->surface_vertices_);
+
+    const size_t vertex_count = p_gpu_data->surface_vertices_.size() / 3;
+    vertex_to_triangles_.assign(vertex_count, {});
+    for (size_t i = 0; i + 2 < p_gpu_data->indices_.size(); i += 3)
+    {
+        const uint32_t i0 = p_gpu_data->indices_[i + 0];
+        const uint32_t i1 = p_gpu_data->indices_[i + 1];
+        const uint32_t i2 = p_gpu_data->indices_[i + 2];
+        if (i0 >= vertex_count || i1 >= vertex_count || i2 >= vertex_count)
+            continue;
+
+        const uint32_t tri_id = static_cast<uint32_t>(i / 3);
+        vertex_to_triangles_[i0].push_back(tri_id);
+        vertex_to_triangles_[i1].push_back(tri_id);
+        vertex_to_triangles_[i2].push_back(tri_id);
+    }
+
+    float min_x = std::numeric_limits<float>::max();
+    float min_y = std::numeric_limits<float>::max();
+    float min_z = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float max_y = std::numeric_limits<float>::lowest();
+    float max_z = std::numeric_limits<float>::lowest();
+    for (size_t i = 0; i < vertex_count; ++i)
+    {
+        const float x = p_gpu_data->surface_vertices_[i * 3 + 0];
+        const float y = p_gpu_data->surface_vertices_[i * 3 + 1];
+        const float z = p_gpu_data->surface_vertices_[i * 3 + 2];
+        min_x = std::min(min_x, x);
+        min_y = std::min(min_y, y);
+        min_z = std::min(min_z, z);
+        max_x = std::max(max_x, x);
+        max_y = std::max(max_y, y);
+        max_z = std::max(max_z, z);
+    }
+
+    const float dx = max_x - min_x;
+    const float dy = max_y - min_y;
+    const float dz = max_z - min_z;
+    const float diag = std::sqrt(dx * dx + dy * dy + dz * dz);
+    pick_query_radius_ = std::max(diag * 0.01f, 1e-4f);
+    pick_ray_tmax_ = std::max(diag * 3.0f, 1.0f);
+
+    pick_gpu_data_ = p_gpu_data;
+    has_pick_cache_ = true;
+}
+
+bool GLWidget::screenPointToObjectRay(const QPoint& pos,
+                                      QVector3D& ray_origin_obj,
+                                      QVector3D& ray_dir_obj) const
+{
+    if (width() <= 0 || height() <= 0)
+        return false;
+
+    const float ndc_x = 2.0f * static_cast<float>(pos.x()) / static_cast<float>(width()) - 1.0f;
+    const float ndc_y = 1.0f - 2.0f * static_cast<float>(pos.y()) / static_cast<float>(height());
+
+    bool ok = false;
+    const QMatrix4x4 inv_vp = (camera_.getProjectionMatrix() * camera_.getViewMatrix()).inverted(&ok);
+    if (!ok)
+        return false;
+
+    QVector4D near_world = inv_vp * QVector4D(ndc_x, ndc_y, -1.0f, 1.0f);
+    QVector4D far_world = inv_vp * QVector4D(ndc_x, ndc_y, 1.0f, 1.0f);
+    if (std::abs(near_world.w()) < kRayEpsilon || std::abs(far_world.w()) < kRayEpsilon)
+        return false;
+
+    near_world /= near_world.w();
+    far_world /= far_world.w();
+
+    const QMatrix4x4 inv_model = camera_.getModelMatrix().inverted(&ok);
+    if (!ok)
+        return false;
+
+    QVector4D near_obj4 = inv_model * near_world;
+    QVector4D far_obj4 = inv_model * far_world;
+    if (std::abs(near_obj4.w()) < kRayEpsilon || std::abs(far_obj4.w()) < kRayEpsilon)
+        return false;
+
+    near_obj4 /= near_obj4.w();
+    far_obj4 /= far_obj4.w();
+
+    ray_origin_obj = near_obj4.toVector3D();
+    ray_dir_obj = (far_obj4 - near_obj4).toVector3D();
+    if (ray_dir_obj.lengthSquared() < kRayEpsilon)
+        return false;
+
+    ray_dir_obj.normalize();
+    return true;
+}
+
+bool GLWidget::pickAtScreenPos(const QPoint& pos)
+{
+    if (!has_pick_cache_ || !pick_gpu_data_)
+    {
+        renderer_.clearPickedPoint();
+        return false;
+    }
+
+    QVector3D ray_origin_obj;
+    QVector3D ray_dir_obj;
+    if (!screenPointToObjectRay(pos, ray_origin_obj, ray_dir_obj))
+    {
+        renderer_.clearPickedPoint();
+        return false;
+    }
+
+    const float origin_arr[3] = {ray_origin_obj.x(), ray_origin_obj.y(), ray_origin_obj.z()};
+    const float dir_arr[3] = {ray_dir_obj.x(), ray_dir_obj.y(), ray_dir_obj.z()};
+    auto candidate_vertices =
+        pick_octree_.findRayCandidates(origin_arr, dir_arr, pick_query_radius_, pick_ray_tmax_, 256);
+
+    if (candidate_vertices.empty())
+    {
+        renderer_.clearPickedPoint();
+        return false;
+    }
+
+    std::unordered_set<uint32_t> candidate_triangles;
+    candidate_triangles.reserve(candidate_vertices.size() * 2);
+    for (int v_idx : candidate_vertices)
+    {
+        if (v_idx < 0 || static_cast<size_t>(v_idx) >= vertex_to_triangles_.size())
+            continue;
+        for (uint32_t tri_id : vertex_to_triangles_[static_cast<size_t>(v_idx)])
+            candidate_triangles.insert(tri_id);
+    }
+
+    const auto& vertices = pick_gpu_data_->surface_vertices_;
+    const auto& indices = pick_gpu_data_->indices_;
+
+    float closest_t = std::numeric_limits<float>::max();
+    QVector3D hit_point;
+    bool hit = false;
+
+    for (uint32_t tri_id : candidate_triangles)
+    {
+        const size_t base = static_cast<size_t>(tri_id) * 3;
+        if (base + 2 >= indices.size())
+            continue;
+
+        const uint32_t i0 = indices[base + 0];
+        const uint32_t i1 = indices[base + 1];
+        const uint32_t i2 = indices[base + 2];
+        const size_t p0 = static_cast<size_t>(i0) * 3;
+        const size_t p1 = static_cast<size_t>(i1) * 3;
+        const size_t p2 = static_cast<size_t>(i2) * 3;
+        if (p2 + 2 >= vertices.size())
+            continue;
+
+        const QVector3D v0(vertices[p0 + 0], vertices[p0 + 1], vertices[p0 + 2]);
+        const QVector3D v1(vertices[p1 + 0], vertices[p1 + 1], vertices[p1 + 2]);
+        const QVector3D v2(vertices[p2 + 0], vertices[p2 + 1], vertices[p2 + 2]);
+
+        float t = 0.0f;
+        if (!rayTriangleIntersect(ray_origin_obj, ray_dir_obj, v0, v1, v2, t))
+            continue;
+
+        if (t < closest_t)
+        {
+            closest_t = t;
+            hit_point = ray_origin_obj + ray_dir_obj * t;
+            hit = true;
+        }
+    }
+
+    if (hit)
+    {
+        renderer_.setPickedPoint(hit_point);
+        return true;
+    }
+
+    renderer_.clearPickedPoint();
+    return false;
 }

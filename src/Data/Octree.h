@@ -129,6 +129,20 @@ public:
      */
     std::vector<int> findInRadius(const float pos[3], float radius) const;
 
+    /**
+     * Collect candidate points near a ray segment for geometric picking.
+     * @param origin         Ray origin (float[3]).
+     * @param dir_normalized Ray direction (must be normalized).
+     * @param radius         Max perpendicular distance from point to ray.
+     * @param t_max          Max ray distance to consider (t in origin + t * dir).
+     * @param max_candidates Max number of candidates to return (sorted by t asc).
+     */
+    std::vector<int> findRayCandidates(const float origin[3],
+                                       const float dir_normalized[3],
+                                       float radius,
+                                       float t_max,
+                                       int max_candidates) const;
+
     int totalPoints() const { return vertices_ ? static_cast<int>(vertices_->size() / 3) : 0; }
 
 private:
@@ -144,6 +158,19 @@ private:
     void queryKNearest(const OctreeNode* node, const float pos[3], int k, MaxHeap& heap) const;
     void queryRadius(const OctreeNode* node, const float pos[3],
                      float sq_radius, std::vector<int>& result) const;
+    void queryRayCandidates(const OctreeNode* node,
+                            const float origin[3],
+                            const float dir_normalized[3],
+                            const float inv_dir[3],
+                            float sq_radius,
+                            float t_max,
+                            std::vector<std::pair<float, int>>& result) const;
+
+    static bool intersectRayAABB(const Bounds3& bounds,
+                                 const float origin[3],
+                                 const float dir_normalized[3],
+                                 const float inv_dir[3],
+                                 float t_max);
 
     const float* vertexPtr(int idx) const { return vertices_->data() + idx * 3; }
 
