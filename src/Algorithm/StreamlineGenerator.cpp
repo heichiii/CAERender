@@ -87,55 +87,93 @@ namespace Streamline
             return streamline;
         }
 
-        QVector3D current_pos = seed;
-        streamline.points.reserve(params.max_iterations);
-
-        // 记录初始点
-        StreamlinePoint start_point{current_pos.x(), current_pos.y(), current_pos.z(), 0.0f};
-        streamline.points.push_back(start_point);
-
-        // 迭代生成流线点
-        for (int iter = 0; iter < params.max_iterations; ++iter)
+        const float abs_dt = std::abs(params.dt);
+        if (abs_dt <= std::numeric_limits<float>::epsilon())
         {
-            // 获取当前位置的矢量
-            QVector3D velocity = interpolateVector(current_pos, vector_field, mesh_vertices);
-            float velocity_magnitude = velocity.length();
-
-            // 停止条件1：速度过小（到达静止区域）
-            if (velocity_magnitude < params.min_velocity)
-            {
-                // qDebug() << "Streamline stopped: velocity too small" << velocity_magnitude;
-                break;
-            }
-
-            // 停止条件2：超出边界
-            if (!isWithinBounds(current_pos))
-            {
-                // qDebug() << "Streamline stopped: out of bounds";
-                break;
-            }
-
-            // 停止条件3：长度超限
-            if (streamline.total_length > params.max_length)
-            {
-                // qDebug() << "Streamline stopped: max length exceeded";
-                break;
-            }
-
-            // RK4积分求下一步位置
-            QVector3D next_pos = rk4Step(current_pos, params.dt, vector_field, mesh_vertices);
-
-            // 计算步长距离
-            float step_distance = (next_pos - current_pos).length();
-            streamline.total_length += step_distance;
-
-            // 保存新点
-            StreamlinePoint new_point{next_pos.x(), next_pos.y(), next_pos.z(), velocity_magnitude};
-            streamline.points.push_back(new_point);
-
-            current_pos = next_pos;
+            streamline.valid = false;
+            return streamline;
         }
 
+        std::vector<StreamlinePoint> backward_points;
+        std::vector<StreamlinePoint> forward_points;
+        backward_points.reserve(params.max_iterations);
+        forward_points.reserve(params.max_iterations);
+
+        auto integrateDirection = [&](float dt, std::vector<StreamlinePoint>& out_points,
+                                      float& out_length)
+        {
+            QVector3D current_pos = seed;
+            out_length = 0.0f;
+
+            for (int iter = 0; iter < params.max_iterations; ++iter)
+            {
+                QVector3D velocity = interpolateVector(current_pos, vector_field, mesh_vertices);
+                float velocity_magnitude = velocity.length();
+
+                // 停止条件1：速度过小（到达静止区域）
+                if (velocity_magnitude < params.min_velocity)
+                {
+                    break;
+                }
+
+                // 停止条件2：超出边界
+                if (!isWithinBounds(current_pos))
+                {
+                    break;
+                }
+
+                // 停止条件3：长度超限
+                if (out_length > params.max_length)
+                {
+                    break;
+                }
+
+                // RK4积分求下一步位置
+                QVector3D next_pos = rk4Step(current_pos, dt, vector_field, mesh_vertices);
+
+                if (!isWithinBounds(next_pos))
+                {
+                    break;
+                }
+
+                // 计算步长距离
+                float step_distance = (next_pos - current_pos).length();
+                if (out_length + step_distance > params.max_length)
+                {
+                    break;
+                }
+                out_length += step_distance;
+
+                // 保存新点
+                StreamlinePoint new_point{next_pos.x(), next_pos.y(), next_pos.z(),
+                                          velocity_magnitude};
+                out_points.push_back(new_point);
+
+                current_pos = next_pos;
+            }
+        };
+
+        float backward_length = 0.0f;
+        float forward_length = 0.0f;
+        integrateDirection(-abs_dt, backward_points, backward_length); // 负时间积分
+        integrateDirection(abs_dt, forward_points, forward_length);    // 正时间积分
+
+        streamline.points.reserve(backward_points.size() + 1 + forward_points.size());
+
+        // 合并顺序：backward(反转) -> seed -> forward
+        for (auto it = backward_points.rbegin(); it != backward_points.rend(); ++it)
+        {
+            streamline.points.push_back(*it);
+        }
+
+        QVector3D seed_velocity = interpolateVector(seed, vector_field, mesh_vertices);
+        StreamlinePoint seed_point{seed.x(), seed.y(), seed.z(), seed_velocity.length()};
+        streamline.points.push_back(seed_point);
+
+        streamline.points.insert(streamline.points.end(), forward_points.begin(),
+                                 forward_points.end());
+
+        streamline.total_length = backward_length + forward_length;
         streamline.valid = streamline.points.size() > 1;
         // qDebug() << "Generated streamline with" << streamline.points.size()
         //          << "points, length:" << streamline.total_length;
