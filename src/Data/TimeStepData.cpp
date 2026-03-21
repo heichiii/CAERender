@@ -369,18 +369,18 @@ void TimeStepData::updateVectorBuffer()
 
    
 
-    if (vector_field->location_ == Location::POINT)
-    {
-        std::cout
-            << "  → POINT data: 每个顶点从对应的点获取矢量值，三角形的三个顶点可能有不同的矢量方向"
-            << std::endl;
-    }
-    else if (vector_field->location_ == Location::CELL)
-    {
-        std::cout
-            << "  → CELL data: 每个顶点从所属单元获取矢量值，三角形的三个顶点将显示相同的矢量方向"
-            << std::endl;
-    }
+    // if (vector_field->location_ == Location::POINT)
+    // {
+    //     std::cout
+    //         << "  → POINT data: 每个顶点从对应的点获取矢量值，三角形的三个顶点可能有不同的矢量方向"
+    //         << std::endl;
+    // }
+    // else if (vector_field->location_ == Location::CELL)
+    // {
+    //     std::cout
+    //         << "  → CELL data: 每个顶点从所属单元获取矢量值，三角形的三个顶点将显示相同的矢量方向"
+    //         << std::endl;
+    // }
 }
 
 void TimeStepData::updateStreamlineBuffer(int num_seeds)
