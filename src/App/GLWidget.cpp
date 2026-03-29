@@ -314,13 +314,55 @@ void GLWidget::mousePressEvent(QMouseEvent* event)
 {
     last_mouse_pos_ = event->pos();
     mouse_press_pos_ = event->pos(); // 记录按下位置
+    is_dragging_seed_sphere_ = false;
+    seed_drag_has_last_point_ = false;
 
     if (event->button() == Qt::LeftButton)
     {
-        is_rotating_ = true;
-        lod_update_delay_ = 0;  // 重置 LOD 延迟计数
-        // 每次按下鼠标时更新旋转中心
-        camera_.updateRotationCenter(getScreenCenterInWorld());
+        if (seed_sphere_editing_enabled_ && has_pick_cache_ && isMouseOnSeedSphere(event->pos()))
+        {
+            bool ok = false;
+            const QMatrix4x4 inv_view = camera_.getViewMatrix().inverted(&ok);
+            if (ok)
+            {
+                QVector3D forward_world =
+                    (inv_view * QVector4D(0.0f, 0.0f, -1.0f, 0.0f)).toVector3D();
+                if (forward_world.lengthSquared() > kRayEpsilon)
+                {
+                    forward_world.normalize();
+
+                    const QMatrix4x4 inv_model = camera_.getModelMatrix().inverted(&ok);
+                    if (ok)
+                    {
+                        QVector3D normal_obj =
+                            (inv_model * QVector4D(forward_world, 0.0f)).toVector3D();
+                        if (normal_obj.lengthSquared() > kRayEpsilon)
+                        {
+                            normal_obj.normalize();
+                            const QVector3D center_obj = getEffectiveSeedSphereCenter();
+                            QVector3D point_obj;
+                            if (screenPointToPlaneInObject(event->pos(), center_obj, normal_obj,
+                                                           point_obj))
+                            {
+                                is_dragging_seed_sphere_ = true;
+                                seed_drag_plane_origin_obj_ = center_obj;
+                                seed_drag_plane_normal_obj_ = normal_obj;
+                                seed_drag_last_point_obj_ = point_obj;
+                                seed_drag_has_last_point_ = true;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        if (!is_dragging_seed_sphere_)
+        {
+            is_rotating_ = true;
+            lod_update_delay_ = 0; // 重置 LOD 延迟计数
+            // 每次按下鼠标时更新旋转中心
+            camera_.updateRotationCenter(getScreenCenterInWorld());
+        }
     }
     else if (event->button() == Qt::MiddleButton)
     {
@@ -341,7 +383,22 @@ void GLWidget::mouseMoveEvent(QMouseEvent* event)
     QPoint delta = event->pos() - last_mouse_pos_;
     last_mouse_pos_ = event->pos();
 
-    if (is_rotating_)
+    if (is_dragging_seed_sphere_)
+    {
+        QVector3D point_obj;
+        if (screenPointToPlaneInObject(event->pos(), seed_drag_plane_origin_obj_,
+                                       seed_drag_plane_normal_obj_, point_obj) &&
+            seed_drag_has_last_point_)
+        {
+            const QVector3D move_delta = point_obj - seed_drag_last_point_obj_;
+            seed_anchor_obj_ += move_delta;
+            seed_drag_plane_origin_obj_ += move_delta;
+            seed_drag_last_point_obj_ = point_obj;
+            markStreamlineCacheDirty();
+            syncSeedSphereToRenderer();
+        }
+    }
+    else if (is_rotating_)
     {
         // 使用四元数旋转
         camera_.applyRotationDelta(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
@@ -362,14 +419,9 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* event)
 {
     if (event->button() == Qt::LeftButton)
     {
-        const QPoint release_pos = event->pos();
-        const int move_distance = (release_pos - mouse_press_pos_).manhattanLength();
-        constexpr int kClickThreshold = 4;
-        if (move_distance <= kClickThreshold)
-        {
-            pickAtScreenPos(release_pos);
-        }
         is_rotating_ = false;
+        is_dragging_seed_sphere_ = false;
+        seed_drag_has_last_point_ = false;
     }
     else if (event->button() == Qt::MiddleButton)
     {
@@ -428,6 +480,116 @@ void GLWidget::setRenderMode(Mode mode)
     makeCurrent();
     renderer_.setMode(mode);
 
+    if (mode == Mode::STREAMLINE)
+    {
+        if (!case_data_.steps_.empty())
+        {
+            auto& step = case_data_.steps_[0];
+            step.gpu_data_.streamline_vertices_.clear();
+            step.gpu_data_.streamline_magnitudes_.clear();
+            step.gpu_data_.streamline_line_starts_.clear();
+            step.gpu_data_.streamline_line_counts_.clear();
+            step.gpu_data_.streamline_magnitude_min_ = 0.0f;
+            step.gpu_data_.streamline_magnitude_max_ = 1.0f;
+            renderer_.setMode(Mode::STREAMLINE);
+        }
+        syncSeedSphereToRenderer();
+    }
+    update();
+}
+
+void GLWidget::setSeedSphereRadius(float radius)
+{
+    const float min_radius = std::max(mesh_diag_ * 1e-4f, 1e-5f);
+    const float new_radius = std::max(radius, min_radius);
+    if (std::abs(new_radius - seed_sphere_radius_) > 1e-8f)
+    {
+        seed_sphere_radius_ = new_radius;
+        markStreamlineCacheDirty();
+    }
+    syncSeedSphereToRenderer();
+}
+
+void GLWidget::setSeedSphereOffset(const QVector3D& offset)
+{
+    if ((seed_offset_obj_ - offset).lengthSquared() > 1e-12f)
+    {
+        seed_offset_obj_ = offset;
+        markStreamlineCacheDirty();
+    }
+    syncSeedSphereToRenderer();
+}
+
+void GLWidget::setStreamlineSeedCount(int count)
+{
+    const int new_count = std::max(1, count);
+    if (new_count != streamline_seed_count_)
+    {
+        streamline_seed_count_ = new_count;
+        markStreamlineCacheDirty();
+    }
+}
+
+void GLWidget::setSeedSphereEditingEnabled(bool enabled)
+{
+    seed_sphere_editing_enabled_ = enabled;
+    syncSeedSphereToRenderer();
+    update();
+}
+
+void GLWidget::markStreamlineCacheDirty()
+{
+    streamline_cache_dirty_ = true;
+}
+
+void GLWidget::regenerateStreamlinesFromSeedSphere()
+{
+    if (case_data_.steps_.empty() || case_data_.steps_[0].parts_.empty())
+    {
+        return;
+    }
+
+    auto& step = case_data_.steps_[0];
+    Field* active_field = step.parts_[0].active_field_;
+    if (!active_field || active_field->type_ != Type::VECTOR)
+    {
+        return;
+    }
+
+    const QVector3D center = getEffectiveSeedSphereCenter();
+    const float* mesh_data_ptr =
+        step.parts_[0].vertices_.empty() ? nullptr : step.parts_[0].vertices_.data();
+    const size_t mesh_vertex_count = step.parts_[0].vertices_.size();
+
+    const bool same_center = (center - cached_seed_center_).lengthSquared() <= 1e-12f;
+    const bool same_radius = std::abs(seed_sphere_radius_ - cached_seed_radius_) <= 1e-8f;
+    const bool same_count = streamline_seed_count_ == cached_seed_count_;
+    const bool same_field = active_field == cached_vector_field_;
+    const bool same_mesh =
+        mesh_data_ptr == cached_mesh_data_ptr_ && mesh_vertex_count == cached_mesh_vertex_count_;
+
+    if (!streamline_cache_dirty_ && has_streamline_cache_ && same_center && same_radius &&
+        same_count && same_field && same_mesh)
+    {
+        makeCurrent();
+        renderer_.setMode(Mode::STREAMLINE);
+        update();
+        return;
+    }
+
+    step.updateStreamlineBufferFromSphere(center, seed_sphere_radius_, streamline_seed_count_);
+
+    cached_seed_center_ = center;
+    cached_seed_radius_ = seed_sphere_radius_;
+    cached_seed_count_ = streamline_seed_count_;
+    cached_vector_field_ = active_field;
+    cached_mesh_data_ptr_ = mesh_data_ptr;
+    cached_mesh_vertex_count_ = mesh_vertex_count;
+    has_streamline_cache_ = true;
+    streamline_cache_dirty_ = false;
+
+    makeCurrent();
+    renderer_.setMode(Mode::STREAMLINE);
     update();
 }
 
@@ -501,9 +663,22 @@ void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)
     pick_query_radius_ = 0.01f;
     pick_ray_tmax_ = 10000.0f;
     renderer_.clearPickedPoint();
+    renderer_.clearSeedSphere();
+    has_seed_anchor_ = false;
+    seed_anchor_obj_ = QVector3D(0.0f, 0.0f, 0.0f);
+    mesh_center_obj_ = QVector3D(0.0f, 0.0f, 0.0f);
+    mesh_diag_ = 1.0f;
+    seed_sphere_radius_ = 0.1f;
+    seed_offset_obj_ = QVector3D(0.0f, 0.0f, 0.0f);
+    markStreamlineCacheDirty();
+    has_streamline_cache_ = false;
+    cached_vector_field_ = nullptr;
+    cached_mesh_data_ptr_ = nullptr;
+    cached_mesh_vertex_count_ = 0;
 
     if (!p_gpu_data || p_gpu_data->surface_vertices_.empty() || p_gpu_data->indices_.empty())
     {
+        emit seedSphereCenterChanged(QVector3D(0.0f, 0.0f, 0.0f), false);
         return;
     }
 
@@ -548,11 +723,18 @@ void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)
     const float dy = max_y - min_y;
     const float dz = max_z - min_z;
     const float diag = std::sqrt(dx * dx + dy * dy + dz * dz);
+    mesh_diag_ = std::max(diag, 1e-4f);
+    mesh_center_obj_ = QVector3D((min_x + max_x) * 0.5f, (min_y + max_y) * 0.5f,
+                                 (min_z + max_z) * 0.5f);
     pick_query_radius_ = std::max(diag * 0.01f, 1e-4f);
     pick_ray_tmax_ = std::max(diag * 3.0f, 1.0f);
+    seed_sphere_radius_ = std::max(mesh_diag_ * 0.08f, 1e-4f);
+    has_seed_anchor_ = true;
+    seed_anchor_obj_ = mesh_center_obj_;
 
     pick_gpu_data_ = p_gpu_data;
     has_pick_cache_ = true;
+    syncSeedSphereToRenderer();
 }
 
 bool GLWidget::screenPointToObjectRay(const QPoint& pos,
@@ -597,6 +779,69 @@ bool GLWidget::screenPointToObjectRay(const QPoint& pos,
 
     ray_dir_obj.normalize();
     return true;
+}
+
+bool GLWidget::screenPointToPlaneInObject(const QPoint& pos,
+                                          const QVector3D& plane_point_obj,
+                                          const QVector3D& plane_normal_obj,
+                                          QVector3D& out_point_obj) const
+{
+    QVector3D ray_origin_obj;
+    QVector3D ray_dir_obj;
+    if (!screenPointToObjectRay(pos, ray_origin_obj, ray_dir_obj))
+    {
+        return false;
+    }
+
+    const float denom = QVector3D::dotProduct(plane_normal_obj, ray_dir_obj);
+    if (std::abs(denom) < kRayEpsilon)
+    {
+        return false;
+    }
+
+    const float t = QVector3D::dotProduct(plane_normal_obj, (plane_point_obj - ray_origin_obj)) /
+                    denom;
+    if (t < 0.0f)
+    {
+        return false;
+    }
+
+    out_point_obj = ray_origin_obj + ray_dir_obj * t;
+    return true;
+}
+
+bool GLWidget::isMouseOnSeedSphere(const QPoint& pos) const
+{
+    if (!seed_sphere_editing_enabled_ || !has_pick_cache_)
+    {
+        return false;
+    }
+
+    QVector3D ray_origin_obj;
+    QVector3D ray_dir_obj;
+    if (!screenPointToObjectRay(pos, ray_origin_obj, ray_dir_obj))
+    {
+        return false;
+    }
+
+    const QVector3D center = getEffectiveSeedSphereCenter();
+    const float radius = std::max(seed_sphere_radius_, 1e-6f);
+    const QVector3D oc = ray_origin_obj - center;
+
+    // 归一化方向下: t^2 + 2*b*t + c = 0
+    const float b = QVector3D::dotProduct(oc, ray_dir_obj);
+    const float c = QVector3D::dotProduct(oc, oc) - radius * radius;
+    const float discriminant = b * b - c;
+
+    if (discriminant < 0.0f)
+    {
+        return false;
+    }
+
+    const float sqrt_disc = std::sqrt(discriminant);
+    const float t0 = -b - sqrt_disc;
+    const float t1 = -b + sqrt_disc;
+    return t0 >= 0.0f || t1 >= 0.0f;
 }
 
 bool GLWidget::pickAtScreenPos(const QPoint& pos)
@@ -677,9 +922,51 @@ bool GLWidget::pickAtScreenPos(const QPoint& pos)
     if (hit)
     {
         renderer_.setPickedPoint(hit_point);
+
+        has_seed_anchor_ = true;
+        seed_anchor_obj_ = hit_point;
+        syncSeedSphereToRenderer();
+
+        if (renderer_.getMode() == Mode::STREAMLINE)
+        {
+            regenerateStreamlinesFromSeedSphere();
+        }
+
         return true;
     }
 
     renderer_.clearPickedPoint();
     return false;
+}
+
+QVector3D GLWidget::getEffectiveSeedSphereCenter() const
+{
+    if (!has_seed_anchor_)
+    {
+        return mesh_center_obj_ + seed_offset_obj_;
+    }
+    return seed_anchor_obj_ + seed_offset_obj_;
+}
+
+void GLWidget::syncSeedSphereToRenderer()
+{
+    if (!seed_sphere_editing_enabled_)
+    {
+        renderer_.clearSeedSphere();
+        update();
+        return;
+    }
+
+    if (!has_pick_cache_)
+    {
+        renderer_.clearSeedSphere();
+        emit seedSphereCenterChanged(QVector3D(0.0f, 0.0f, 0.0f), false);
+        update();
+        return;
+    }
+
+    const QVector3D center = getEffectiveSeedSphereCenter();
+    renderer_.setSeedSphere(center, seed_sphere_radius_, true);
+    emit seedSphereCenterChanged(center, true);
+    update();
 }

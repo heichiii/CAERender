@@ -1,6 +1,7 @@
 #pragma once
 #include "MeshPart.h"
 #include "GPUData.h"
+#include <QVector3D>
 
 class TimeStepData
 {
@@ -16,5 +17,6 @@ public:
     void updateScalarBuffer();
     void updateVectorBuffer();
     void updateStreamlineBuffer(int num_seeds);
+    void updateStreamlineBufferFromSphere(const QVector3D& center, float radius, int num_seeds);
 
 };

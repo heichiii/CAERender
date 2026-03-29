@@ -190,7 +190,8 @@ Renderer::Renderer()
     : gpu_data_(nullptr), vbo_(QOpenGLBuffer::VertexBuffer), normal_(QOpenGLBuffer::VertexBuffer),
       ebo_(QOpenGLBuffer::IndexBuffer), arrow_pos_buffer_(QOpenGLBuffer::VertexBuffer),
       arrow_dir_buffer_(QOpenGLBuffer::VertexBuffer),
-    arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), pick_point_vbo_(QOpenGLBuffer::VertexBuffer),
+        arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), pick_point_vbo_(QOpenGLBuffer::VertexBuffer),
+            seed_sphere_vbo_(QOpenGLBuffer::VertexBuffer),
     mesh_render_mode_(MeshRenderMode::SOLID),
             color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false), mode_(Mode::BASIC),
             lod_level_(LODLevel::HIGH)
@@ -241,6 +242,15 @@ void Renderer::initialize()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     pick_point_vao_.release();
 
+    seed_sphere_vao_.create();
+    seed_sphere_vao_.bind();
+    seed_sphere_vbo_.create();
+    seed_sphere_vbo_.bind();
+    seed_sphere_vbo_.allocate(nullptr, 0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    seed_sphere_vao_.release();
+
     glEnable(GL_DEPTH_TEST);
     glDisable(GL_CULL_FACE); // 开启双面光照，禁用背面剔除
 }
@@ -275,6 +285,11 @@ void Renderer::render(const Camera& camera)
     if (has_picked_point_)
     {
         renderPickedPoint(camera);
+    }
+
+    if (show_seed_sphere_)
+    {
+        renderSeedSphere(camera);
     }
 
 }
@@ -804,6 +819,70 @@ void Renderer::clearPickedPoint()
     has_picked_point_ = false;
 }
 
+void Renderer::setSeedSphere(const QVector3D& center_obj, float radius, bool visible)
+{
+    show_seed_sphere_ = visible;
+    if (!visible)
+    {
+        return;
+    }
+
+    const float clamped_radius = std::max(radius, 1e-6f);
+    constexpr int kSegments = 72;
+    constexpr float kPi = 3.14159265358979323846f;
+
+    std::vector<float> vertices;
+    vertices.reserve(static_cast<size_t>(kSegments) * 3 * 3);
+
+    for (int i = 0; i < kSegments; ++i)
+    {
+        const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(kSegments);
+        const float c = std::cos(a);
+        const float s = std::sin(a);
+
+        vertices.push_back(center_obj.x() + clamped_radius * c);
+        vertices.push_back(center_obj.y() + clamped_radius * s);
+        vertices.push_back(center_obj.z());
+    }
+    for (int i = 0; i < kSegments; ++i)
+    {
+        const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(kSegments);
+        const float c = std::cos(a);
+        const float s = std::sin(a);
+
+        vertices.push_back(center_obj.x());
+        vertices.push_back(center_obj.y() + clamped_radius * c);
+        vertices.push_back(center_obj.z() + clamped_radius * s);
+    }
+    for (int i = 0; i < kSegments; ++i)
+    {
+        const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(kSegments);
+        const float c = std::cos(a);
+        const float s = std::sin(a);
+
+        vertices.push_back(center_obj.x() + clamped_radius * c);
+        vertices.push_back(center_obj.y());
+        vertices.push_back(center_obj.z() + clamped_radius * s);
+    }
+
+    seed_sphere_vertex_count_ = static_cast<int>(vertices.size() / 3);
+
+    if (!seed_sphere_vbo_.isCreated())
+    {
+        return;
+    }
+
+    seed_sphere_vao_.bind();
+    seed_sphere_vbo_.bind();
+    seed_sphere_vbo_.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
+    seed_sphere_vao_.release();
+}
+
+void Renderer::clearSeedSphere()
+{
+    show_seed_sphere_ = false;
+}
+
 bool Renderer::getColorbarRange(float& out_min, float& out_max, ColorScheme& out_scheme) const
 {
     if (!gpu_data_)
@@ -869,6 +948,35 @@ void Renderer::renderPickedPoint(const Camera& camera)
     glDrawArrays(GL_POINTS, 0, 1);
     pick_point_vao_.release();
     glDisable(GL_PROGRAM_POINT_SIZE);
+
+    pick_point_shader_program_->release();
+}
+
+void Renderer::renderSeedSphere(const Camera& camera)
+{
+    if (!pick_point_shader_program_ || !pick_point_shader_program_->getProgram() ||
+        !seed_sphere_vao_.isCreated() || seed_sphere_vertex_count_ <= 0)
+    {
+        return;
+    }
+
+    constexpr int kSegments = 72;
+
+    pick_point_shader_program_->bind();
+    pick_point_shader_program_->getProgram()->setUniformValue("u_model", camera.getModelMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_view", camera.getViewMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_projection", camera.getProjectionMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_point_size", 1.0f);
+    pick_point_shader_program_->getProgram()->setUniformValue("u_color", QVector3D(1.0f, 0.8f, 0.1f));
+
+    seed_sphere_vao_.bind();
+    glLineWidth(1.5f);
+    for (int i = 0; i < 3; ++i)
+    {
+        glDrawArrays(GL_LINE_LOOP, i * kSegments, kSegments);
+    }
+    glLineWidth(1.0f);
+    seed_sphere_vao_.release();
 
     pick_point_shader_program_->release();
 }

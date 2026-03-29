@@ -72,6 +72,8 @@ public:
 
     void setPickedPoint(const QVector3D& point_obj);
     void clearPickedPoint();
+    void setSeedSphere(const QVector3D& center_obj, float radius, bool visible);
+    void clearSeedSphere();
     bool getColorbarRange(float& out_min, float& out_max, ColorScheme& out_scheme) const;
 
     Mode getMode() const
@@ -129,6 +131,12 @@ private:
     bool has_picked_point_ = false;
     QVector3D picked_point_obj_ = QVector3D(0.0f, 0.0f, 0.0f);
 
+    // 种子球体预览
+    QOpenGLVertexArrayObject seed_sphere_vao_;
+    QOpenGLBuffer seed_sphere_vbo_;
+    bool show_seed_sphere_ = false;
+    int seed_sphere_vertex_count_ = 0;
+
 
     QMatrix4x4 model_matrix_; // 模型矩阵，包含旋转和平移
 
@@ -158,5 +166,6 @@ private:
     void renderArrows(const Camera& camera);
     void renderStreamlines(const Camera& camera);
     void renderPickedPoint(const Camera& camera);
+    void renderSeedSphere(const Camera& camera);
 
 };

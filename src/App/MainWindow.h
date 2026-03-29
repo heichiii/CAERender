@@ -9,6 +9,10 @@
 #include <QLabel>
 #include <QComboBox>
 #include <QCheckBox>
+#include <QPushButton>
+#include <QVector3D>
+#include <QDoubleSpinBox>
+#include <QSpinBox>
 #include <string>
 class MainWindow : public QMainWindow
 {
@@ -49,6 +53,16 @@ private:
     QLabel* vector_render_mode_label_;
     QComboBox* vector_render_mode_combo_;
     QCheckBox* lod_enable_checkbox_;
+
+    // streamline seed sphere widgets
+    QWidget* streamline_seed_widget_;
+    QLabel* seed_center_label_;
+    QDoubleSpinBox* seed_radius_spin_;
+    QSpinBox* seed_count_spin_;
+    QDoubleSpinBox* seed_offset_x_spin_;
+    QDoubleSpinBox* seed_offset_y_spin_;
+    QDoubleSpinBox* seed_offset_z_spin_;
+    QPushButton* generate_streamline_button_;
     
 private slots:
     void openFile();
@@ -60,5 +74,10 @@ private slots:
     void onFpsUpdated(float fps);
     void onLodLevelChanged(LODLevel level);
     void onLodCheckBoxToggled(bool checked);
+    void onSeedSphereRadiusChanged(double value);
+    void onSeedSphereCountChanged(int value);
+    void onSeedSphereOffsetChanged();
+    void onSeedSphereCenterChanged(const QVector3D& center, bool valid);
+    void onGenerateStreamlinesClicked();
 
 };
