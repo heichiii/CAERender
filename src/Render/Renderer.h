@@ -72,6 +72,7 @@ public:
 
     void setPickedPoint(const QVector3D& point_obj);
     void clearPickedPoint();
+    bool getColorbarRange(float& out_min, float& out_max, ColorScheme& out_scheme) const;
 
     Mode getMode() const
     {

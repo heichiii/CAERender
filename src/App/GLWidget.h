@@ -6,6 +6,7 @@
 #include <QElapsedTimer>
 #include <QVector3D>
 #include <QQuaternion>
+#include <QColor>
 #include "Data/CaseData.h"
 #include "Data/Octree.h"
 #include "Render/Renderer.h"
@@ -78,6 +79,8 @@ private:
 
     // 计算屏幕中心作为旋转中心
     QVector3D getScreenCenterInWorld() const;
+    void drawColorbarOverlay();
+    static QColor mapColor(float t, ColorScheme scheme);
 
     void rebuildPickingCache(const GPUData* p_gpu_data);
     bool screenPointToObjectRay(const QPoint& pos, QVector3D& ray_origin_obj,

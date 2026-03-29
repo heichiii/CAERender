@@ -192,7 +192,8 @@ Renderer::Renderer()
       arrow_dir_buffer_(QOpenGLBuffer::VertexBuffer),
     arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), pick_point_vbo_(QOpenGLBuffer::VertexBuffer),
     mesh_render_mode_(MeshRenderMode::SOLID),
-      color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false)
+            color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false), mode_(Mode::BASIC),
+            lod_level_(LODLevel::HIGH)
     //   vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
 // render_vector_(false)
 {
@@ -251,6 +252,10 @@ void Renderer::render(const Camera& camera)
         return; // 没有数据可渲染
     }
 
+    // QPainter 等 2D 覆盖层可能修改 GL 状态，这里每帧仅恢复必要深度状态。
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+
     // 清空颜色和深度缓冲区
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
@@ -290,6 +295,7 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
 void Renderer::setMeshRenderMode(MeshRenderMode mode)
 {
     mesh_render_mode_ = mode;
+    applyLODToIndexBuffer();
 }
 
 void Renderer::setColorScheme(ColorScheme scheme)
@@ -796,6 +802,51 @@ void Renderer::setPickedPoint(const QVector3D& point_obj)
 void Renderer::clearPickedPoint()
 {
     has_picked_point_ = false;
+}
+
+bool Renderer::getColorbarRange(float& out_min, float& out_max, ColorScheme& out_scheme) const
+{
+    if (!gpu_data_)
+    {
+        return false;
+    }
+
+    out_scheme = color_scheme_;
+
+    if (mode_ == Mode::BASIC)
+    {
+        if (!use_field_coloring_ || gpu_data_->scalar_fields_.empty())
+        {
+            return false;
+        }
+        out_min = gpu_data_->scalar_min_;
+        out_max = gpu_data_->scalar_max_;
+        return true;
+    }
+
+    if (mode_ == Mode::ARROW)
+    {
+        if (gpu_data_->vector_field_magnitudes_.empty())
+        {
+            return false;
+        }
+        out_min = gpu_data_->vector_magnitude_min_;
+        out_max = gpu_data_->vector_magnitude_max_;
+        return true;
+    }
+
+    if (mode_ == Mode::STREAMLINE)
+    {
+        if (gpu_data_->streamline_magnitudes_.empty())
+        {
+            return false;
+        }
+        out_min = gpu_data_->streamline_magnitude_min_;
+        out_max = gpu_data_->streamline_magnitude_max_;
+        return true;
+    }
+
+    return false;
 }
 
 void Renderer::renderPickedPoint(const Camera& camera)

@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
+#include <QPainter>
 #include <QVector4D>
 
 #include <algorithm>
@@ -114,6 +115,7 @@ void GLWidget::paintGL()
     updateLOD();
 
     renderer_.render(camera_);
+    drawColorbarOverlay();
 
     // 更新帧率计算
     frame_count_++;
@@ -123,6 +125,175 @@ void GLWidget::paintGL()
         frame_count_ = 0;
         fps_timer_.restart();
         emit fpsUpdated(current_fps_);
+    }
+}
+
+QColor GLWidget::mapColor(float t, ColorScheme scheme)
+{
+    const float clamped = std::clamp(t, 0.0f, 1.0f);
+    auto toRgb = [](float r, float g, float b) -> QColor
+    {
+        return QColor::fromRgbF(std::clamp(r, 0.0f, 1.0f), std::clamp(g, 0.0f, 1.0f),
+                                std::clamp(b, 0.0f, 1.0f));
+    };
+
+    switch (scheme)
+    {
+        case ColorScheme::RAINBOW:
+        {
+            if (clamped < 0.125f)
+            {
+                return toRgb(0.0f, 0.0f, 0.5f + 0.5f * (clamped / 0.125f));
+            }
+            if (clamped < 0.375f)
+            {
+                return toRgb(0.0f, (clamped - 0.125f) / 0.25f, 1.0f);
+            }
+            if (clamped < 0.625f)
+            {
+                const float s = (clamped - 0.375f) / 0.25f;
+                return toRgb(s, 1.0f, 1.0f - s);
+            }
+            if (clamped < 0.875f)
+            {
+                return toRgb(1.0f, 1.0f - (clamped - 0.625f) / 0.25f, 0.0f);
+            }
+            return toRgb(1.0f - 0.5f * (clamped - 0.875f) / 0.125f, 0.0f, 0.0f);
+        }
+        case ColorScheme::HEATMAP:
+        {
+            if (clamped < 0.25f)
+            {
+                return toRgb(clamped * 4.0f, 0.0f, 0.0f);
+            }
+            if (clamped < 0.5f)
+            {
+                return toRgb(1.0f, (clamped - 0.25f) * 4.0f, 0.0f);
+            }
+            if (clamped < 0.75f)
+            {
+                return toRgb(1.0f, 1.0f, (clamped - 0.5f) * 4.0f);
+            }
+            return toRgb(1.0f, 1.0f, 1.0f);
+        }
+        case ColorScheme::COOL_WARM:
+        {
+            if (clamped < 0.5f)
+            {
+                const float s = clamped * 2.0f;
+                return toRgb(s, s, 1.0f);
+            }
+            const float s = (clamped - 0.5f) * 2.0f;
+            return toRgb(1.0f, 1.0f - s, 1.0f - s);
+        }
+        case ColorScheme::GRAYSCALE:
+            return toRgb(clamped, clamped, clamped);
+        case ColorScheme::BLUE_WHITE_RED:
+        {
+            if (clamped < 0.5f)
+            {
+                const float s = clamped * 2.0f;
+                return toRgb(0.0f + s, 0.0f + s, 0.5f + 0.5f * s);
+            }
+            const float s = (clamped - 0.5f) * 2.0f;
+            return toRgb(1.0f - 0.5f * s, 1.0f - s, 1.0f - s);
+        }
+        default:
+            return toRgb(clamped, clamped, clamped);
+    }
+}
+
+void GLWidget::drawColorbarOverlay()
+{
+    float value_min = 0.0f;
+    float value_max = 1.0f;
+    ColorScheme scheme = ColorScheme::RAINBOW;
+    if (!renderer_.getColorbarRange(value_min, value_max, scheme))
+    {
+        return;
+    }
+
+    if (!std::isfinite(value_min) || !std::isfinite(value_max))
+    {
+        return;
+    }
+    if (std::abs(value_max - value_min) < 1e-12f)
+    {
+        value_max = value_min + 1.0f;
+    }
+
+    const int bar_width = 220;
+    const int bar_height = 18;
+    const int margin = 16;
+    const int text_width = 62;
+    const QRect panel_rect(width() - bar_width - text_width - margin, margin, bar_width + text_width,
+                           72);
+    const QRect bar_rect(panel_rect.left() + 8, panel_rect.top() + 30, bar_width, bar_height);
+
+    QPainter painter(this);
+    painter.beginNativePainting();
+    painter.endNativePainting();
+    painter.setRenderHint(QPainter::Antialiasing, true);
+    painter.setRenderHint(QPainter::TextAntialiasing, true);
+
+    painter.setPen(Qt::NoPen);
+    painter.setBrush(QColor(0, 0, 0, 110));
+    painter.drawRoundedRect(panel_rect, 8.0, 8.0);
+
+    QLinearGradient gradient(bar_rect.topLeft(), bar_rect.topRight());
+    constexpr int kColorSamples = 32;
+    for (int i = 0; i <= kColorSamples; ++i)
+    {
+        const float t = static_cast<float>(i) / static_cast<float>(kColorSamples);
+        gradient.setColorAt(t, mapColor(t, scheme));
+    }
+    painter.fillRect(bar_rect, gradient);
+    painter.setPen(QPen(QColor(230, 230, 230, 220), 1));
+    painter.drawRect(bar_rect);
+
+    auto formatValue = [](float value) -> QString
+    {
+        const float abs_value = std::abs(value);
+        if (abs_value >= 10000.0f || (abs_value > 0.0f && abs_value < 0.001f))
+        {
+            return QString::number(value, 'e', 2);
+        }
+        return QString::number(value, 'f', 3);
+    };
+
+    QString title;
+    if (renderer_.getMode() == Mode::BASIC)
+    {
+        title = "Scalar";
+    }
+    else if (renderer_.getMode() == Mode::ARROW)
+    {
+        title = "Vector Magnitude";
+    }
+    else
+    {
+        title = "Streamline Magnitude";
+    }
+
+    painter.setPen(QColor(245, 245, 245));
+    painter.drawText(QRect(panel_rect.left() + 8, panel_rect.top() + 8, panel_rect.width() - 16, 18),
+                     Qt::AlignLeft | Qt::AlignVCenter, title);
+
+    painter.drawText(QRect(bar_rect.left(), bar_rect.bottom() + 4, 60, 16),
+                     Qt::AlignLeft | Qt::AlignVCenter, formatValue(value_min));
+    painter.drawText(QRect(bar_rect.right() - 60, bar_rect.bottom() + 4, 60, 16),
+                     Qt::AlignRight | Qt::AlignVCenter, formatValue(value_max));
+
+    painter.beginNativePainting();
+    painter.endNativePainting();
+    painter.end();
+
+    // 避免 QPainter 覆盖绘制残留状态影响下一帧 3D 渲染。
+    if (auto* context = QOpenGLContext::currentContext())
+    {
+        auto* funcs = context->functions();
+        funcs->glEnable(GL_DEPTH_TEST);
+        funcs->glDepthMask(GL_TRUE);
     }
 }
 
