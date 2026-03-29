@@ -502,13 +502,18 @@ void TimeStepData::updateStreamlineBufferFromSphere(const QVector3D& center, flo
               << ", seeds=" << seed_positions.size() << std::endl;
 
     Streamline::StreamlineGenerator generator;
-    Streamline::StreamlineParams params{.dt = 0.02f,
-                                        .max_length = 200.0f,
-                                        .min_velocity = 0.001f,
-                                        .max_iterations = 4000,
-                                        .num_threads = 16};
+    Streamline::StreamlineParams params{.dt = 0.05f,
+                                        .max_length = 1800.0f,
+                                        .max_propagation_time = 0.0f,
+                                        .min_velocity = 0.005f,
+                                        .max_iterations = 16000,
+                                        .num_threads = 16,
+                                        .use_physical_velocity = true,
+                                        .enable_smoothing = false,
+                                        .smooth_iterations = 1};
 
-    auto streamlines = generator.generate(seed_positions, vector_field, part.vertices_, params);
+    auto streamlines =
+        generator.generate(seed_positions, vector_field, part.vertices_, params, &part);
 
     gpu_data_.streamline_vertices_.clear();
     gpu_data_.streamline_magnitudes_.clear();

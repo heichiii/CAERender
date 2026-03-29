@@ -269,11 +269,12 @@ void Renderer::render(const Camera& camera)
     // 清空颜色和深度缓冲区
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    if (mode_ == Mode::BASIC)
-    {
-        renderBasic(camera);
-    }
-    else if (mode_ == Mode::ARROW)
+    
+    // 总是渲染基础网格（作为背景）
+    renderBasic(camera);
+    
+    // 根据模式在网格上叠加渲染箭头或流线
+    if (mode_ == Mode::ARROW)
     {
         renderArrows(camera);
     }

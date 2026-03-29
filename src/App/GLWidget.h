@@ -118,7 +118,7 @@ private:
     QVector3D mesh_center_obj_ = QVector3D(0.0f, 0.0f, 0.0f);
     float mesh_diag_ = 1.0f;
     float seed_sphere_radius_ = 0.1f;
-    int streamline_seed_count_ = 1000;
+    int streamline_seed_count_ = 100;
 
     bool is_dragging_seed_sphere_ = false;
     QVector3D seed_drag_plane_origin_obj_ = QVector3D(0.0f, 0.0f, 0.0f);

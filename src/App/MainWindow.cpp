@@ -34,7 +34,7 @@ void MainWindow::setupUI()
     gl_widget_ = new GLWidget(this);
     setCentralWidget(gl_widget_);
 
-    // 创建 Render Options Dock
+    // 创建 Render Options Dock (仅用于网格和场量)
     render_dock_ = new QDockWidget("Render Options", this);
     render_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
 
@@ -63,7 +63,7 @@ void MainWindow::setupUI()
     render_layout->addWidget(lod_group);
 
     // 场量选择
-    auto* field_group = new QGroupBox("场量");
+    auto* field_group = new QGroupBox("场量(标量)");
     auto* field_layout = new QVBoxLayout();
     field_combo_ = new QComboBox();
     field_combo_->addItem("无");
@@ -71,7 +71,7 @@ void MainWindow::setupUI()
     field_group->setLayout(field_layout);
     render_layout->addWidget(field_group);
 
-    // 场量选项（动态显示）
+    // 场量选项（仅用于标量场）
     field_options_widget_ = new QWidget();
     auto* options_layout = new QVBoxLayout(field_options_widget_);
     options_layout->setContentsMargins(0, 0, 0, 0);
@@ -87,86 +87,9 @@ void MainWindow::setupUI()
     options_layout->addWidget(color_scheme_label_);
     options_layout->addWidget(color_scheme_combo_);
 
-    // 矢量渲染模式（用于矢量场）
-    vector_render_mode_label_ = new QLabel("渲染模式:");
-    vector_render_mode_combo_ = new QComboBox();
-    vector_render_mode_combo_->addItem("箭头渲染");
-    vector_render_mode_combo_->addItem("流线生成");
-    options_layout->addWidget(vector_render_mode_label_);
-    options_layout->addWidget(vector_render_mode_combo_);
-
-    // 流线种子球控制
-    streamline_seed_widget_ = new QGroupBox("流线种子球");
-    auto* seed_layout = new QVBoxLayout(streamline_seed_widget_);
-
-    seed_center_label_ = new QLabel("中心: (0.000, 0.000, 0.000)");
-    seed_layout->addWidget(seed_center_label_);
-
-    auto* radius_row = new QHBoxLayout();
-    radius_row->addWidget(new QLabel("半径"));
-    seed_radius_spin_ = new QDoubleSpinBox();
-    seed_radius_spin_->setDecimals(4);
-    seed_radius_spin_->setRange(0.0001, 1e6);
-    seed_radius_spin_->setSingleStep(0.01);
-    seed_radius_spin_->setValue(gl_widget_->getSeedSphereRadius());
-    radius_row->addWidget(seed_radius_spin_);
-    seed_layout->addLayout(radius_row);
-
-    auto* count_row = new QHBoxLayout();
-    count_row->addWidget(new QLabel("种子数"));
-    seed_count_spin_ = new QSpinBox();
-    seed_count_spin_->setRange(1, 20000);
-    seed_count_spin_->setSingleStep(100);
-    seed_count_spin_->setValue(gl_widget_->getStreamlineSeedCount());
-    count_row->addWidget(seed_count_spin_);
-    seed_layout->addLayout(count_row);
-
-    auto* offset_x_row = new QHBoxLayout();
-    offset_x_row->addWidget(new QLabel("偏移 X"));
-    seed_offset_x_spin_ = new QDoubleSpinBox();
-    seed_offset_x_spin_->setDecimals(4);
-    seed_offset_x_spin_->setRange(-1e6, 1e6);
-    seed_offset_x_spin_->setSingleStep(0.01);
-    offset_x_row->addWidget(seed_offset_x_spin_);
-    seed_layout->addLayout(offset_x_row);
-
-    auto* offset_y_row = new QHBoxLayout();
-    offset_y_row->addWidget(new QLabel("偏移 Y"));
-    seed_offset_y_spin_ = new QDoubleSpinBox();
-    seed_offset_y_spin_->setDecimals(4);
-    seed_offset_y_spin_->setRange(-1e6, 1e6);
-    seed_offset_y_spin_->setSingleStep(0.01);
-    offset_y_row->addWidget(seed_offset_y_spin_);
-    seed_layout->addLayout(offset_y_row);
-
-    auto* offset_z_row = new QHBoxLayout();
-    offset_z_row->addWidget(new QLabel("偏移 Z"));
-    seed_offset_z_spin_ = new QDoubleSpinBox();
-    seed_offset_z_spin_->setDecimals(4);
-    seed_offset_z_spin_->setRange(-1e6, 1e6);
-    seed_offset_z_spin_->setSingleStep(0.01);
-    offset_z_row->addWidget(seed_offset_z_spin_);
-    seed_layout->addLayout(offset_z_row);
-
-    auto* hint_label = new QLabel("提示: 流线模式下按住左键拖动球体");
-    seed_layout->addWidget(hint_label);
-
-    generate_streamline_button_ = new QPushButton("生成流线");
-    seed_layout->addWidget(generate_streamline_button_);
-
-    const QVector3D init_offset = gl_widget_->getSeedSphereOffset();
-    seed_offset_x_spin_->setValue(init_offset.x());
-    seed_offset_y_spin_->setValue(init_offset.y());
-    seed_offset_z_spin_->setValue(init_offset.z());
-
-    options_layout->addWidget(streamline_seed_widget_);
-
-    // 默认隐藏所有场量选项
+    // 默认隐藏色彩方案
     color_scheme_label_->hide();
     color_scheme_combo_->hide();
-    vector_render_mode_label_->hide();
-    vector_render_mode_combo_->hide();
-    streamline_seed_widget_->hide();
 
     render_layout->addWidget(field_options_widget_);
     render_layout->addStretch();
@@ -190,22 +113,29 @@ void MainWindow::setupUI()
     connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onColorSchemeChanged);
 
-    // 连接矢量渲染模式
-    connect(vector_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &MainWindow::onVectorRenderModeChanged);
+    // 创建 Streamline Options Dock
+    streamline_dock_ = new QDockWidget("Streamline Options", this);
+    streamline_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
+    
+    streamline_options_widget_ = new StreamlineOptionsWidget(gl_widget_, this);
+    streamline_dock_->setWidget(streamline_options_widget_);
+    addDockWidget(Qt::LeftDockWidgetArea, streamline_dock_);
 
-        connect(seed_radius_spin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+    // 连接流线选项信号
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineVectorFieldChanged, this,
+            &MainWindow::onStreamlineVectorFieldChanged);
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineRenderModeChanged, this,
+            &MainWindow::onStreamlineRenderModeChanged);
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineLodLevelChanged, this,
+            &MainWindow::onStreamlineLodLevelChanged);
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::seedSphereRadiusChanged, this,
             &MainWindow::onSeedSphereRadiusChanged);
-        connect(seed_count_spin_, QOverload<int>::of(&QSpinBox::valueChanged), this,
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::seedSphereCountChanged, this,
             &MainWindow::onSeedSphereCountChanged);
-        connect(seed_offset_x_spin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::seedSphereOffsetChanged, this,
             &MainWindow::onSeedSphereOffsetChanged);
-        connect(seed_offset_y_spin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
-            &MainWindow::onSeedSphereOffsetChanged);
-        connect(seed_offset_z_spin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
-            &MainWindow::onSeedSphereOffsetChanged);
-            connect(generate_streamline_button_, &QPushButton::clicked, this,
-                &MainWindow::onGenerateStreamlinesClicked);
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::generateStreamlinesRequested, this,
+            &MainWindow::onGenerateStreamlinesRequested);
 
     // 创建 Properties Dock
     properties_dock_ = new QDockWidget("Properties", this);
@@ -263,17 +193,25 @@ void MainWindow::setupMenus()
     QMenu* view = menuBar()->addMenu("&View");
     auto* renderOptionsAction = new QWidgetAction(view);
     auto* renderOptionsCheckBox = new QCheckBox("Render Options", view);
+    auto* streamlineOptionsAction = new QWidgetAction(view);
+    auto* streamlineOptionsCheckBox = new QCheckBox("Streamline Options", view);
     auto* propertiesAction = new QWidgetAction(view);
     auto* propertiesCheckBox = new QCheckBox("Properties", view);
     renderOptionsCheckBox->setChecked(true);
+    streamlineOptionsCheckBox->setChecked(true);
     propertiesCheckBox->setChecked(true);
     renderOptionsAction->setDefaultWidget(renderOptionsCheckBox);
+    streamlineOptionsAction->setDefaultWidget(streamlineOptionsCheckBox);
     propertiesAction->setDefaultWidget(propertiesCheckBox);
     view->addAction(renderOptionsAction);
+    view->addAction(streamlineOptionsAction);
     view->addAction(propertiesAction);
 
     connect(renderOptionsCheckBox, &QCheckBox::toggled, this,
             [this](bool checked) { render_dock_->setVisible(checked); });
+
+    connect(streamlineOptionsCheckBox, &QCheckBox::toggled, this,
+            [this](bool checked) { streamline_dock_->setVisible(checked); });
 
     connect(propertiesCheckBox, &QCheckBox::toggled, this,
             [this](bool checked) { properties_dock_->setVisible(checked); });
@@ -283,6 +221,13 @@ void MainWindow::setupMenus()
             {
                 QSignalBlocker blocker1(renderOptionsCheckBox);
                 renderOptionsCheckBox->setChecked(visible);
+            });
+
+    connect(streamline_dock_, &QDockWidget::visibilityChanged, this,
+            [streamlineOptionsCheckBox](bool visible)
+            {
+                QSignalBlocker blocker2_streamline(streamlineOptionsCheckBox);
+                streamlineOptionsCheckBox->setChecked(visible);
             });
 
     connect(properties_dock_, &QDockWidget::visibilityChanged, this,
@@ -300,7 +245,8 @@ void MainWindow::openFile()
 {
     PROFILE_CODE
 #if DEBUG_MODE
-    QString filename = "E:/data/CAE/VTK/motorBike_500.vtk";
+    // QString filename = "E:/data/CAE/VTK/motorBike_500.vtk";
+    QString filename = "E:\\data\\CAE\\VTK_Submarine2/Submarine_case_4.vtk";
 #else
     QString filename = QFileDialog::getOpenFileName(
         this, "打开VTK文件", "E:/data/CAE", "VTK Files (*.vtk *.vtu *.vtp);;All Files (*.*);");
@@ -410,13 +356,9 @@ void MainWindow::onFieldSelectionChanged(int index)
     // 隐藏所有场量选项
     color_scheme_label_->hide();
     color_scheme_combo_->hide();
-    vector_render_mode_label_->hide();
-    vector_render_mode_combo_->hide();
-    streamline_seed_widget_->hide();
 
     if (index == 0) // "无"选项
     {
-        gl_widget_->setSeedSphereEditingEnabled(false);
         gl_widget_->getCaseData()->steps_[0].activateField("无");
         gl_widget_->setUseFieldColoring(false);
         gl_widget_->setRenderMode(Mode::BASIC);
@@ -428,18 +370,10 @@ void MainWindow::onFieldSelectionChanged(int index)
     Type field_type = gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
     if (field_type == Type::SCALAR)
     {
-        gl_widget_->setSeedSphereEditingEnabled(false);
         gl_widget_->setRenderMode(Mode::BASIC);
         gl_widget_->setUseFieldColoring(true);
         color_scheme_label_->show();
         color_scheme_combo_->show();
-    }
-    else if (field_type == Type::VECTOR)
-    {
-        gl_widget_->setRenderMode(Mode::ARROW);
-        vector_render_mode_label_->show();
-        vector_render_mode_combo_->show();
-        onVectorRenderModeChanged(vector_render_mode_combo_->currentIndex());
     }
 }
 
@@ -460,32 +394,53 @@ void MainWindow::updateFieldList()
 
     const TimeStepData& time_step = case_data->steps_[0];
 
-    // 收集所有场量名称（去重）
-    QSet<QString> field_names;
+    // 收集所有标量字段名称（去重）和所有矢量字段名称
+    QSet<QString> scalar_field_names;
+    QStringList vector_field_names;
 
     for (const auto& part : time_step.parts_)
     {
         // 添加点场
         for (const auto& field : part.point_fields_)
         {
-            field_names.insert(QString::fromStdString(field.name_));
+            if (field.type_ == Type::SCALAR)
+            {
+                scalar_field_names.insert(QString::fromStdString(field.name_));
+            }
+            else if (field.type_ == Type::VECTOR)
+            {
+                vector_field_names.append(QString::fromStdString(field.name_));
+            }
         }
 
         // 添加单元场
         for (const auto& field : part.cell_fields_)
         {
-            field_names.insert(QString::fromStdString(field.name_));
+            if (field.type_ == Type::SCALAR)
+            {
+                scalar_field_names.insert(QString::fromStdString(field.name_));
+            }
+            else if (field.type_ == Type::VECTOR)
+            {
+                vector_field_names.append(QString::fromStdString(field.name_));
+            }
         }
     }
 
-    // 按字母顺序排序并添加到下拉框
-    QList<QString> sorted_names = field_names.values();
-    std::sort(sorted_names.begin(), sorted_names.end());
+    // 按字母顺序排序并添加标量字段到下拉框
+    QList<QString> sorted_scalar_names = scalar_field_names.values();
+    std::sort(sorted_scalar_names.begin(), sorted_scalar_names.end());
 
-    for (const QString& name : sorted_names)
+    for (const QString& name : sorted_scalar_names)
     {
         field_combo_->addItem(name);
     }
+
+    // 更新流线选项中的矢量场列表
+    vector_field_names.removeAll(""); // 移除空值
+    std::sort(vector_field_names.begin(), vector_field_names.end());
+    vector_field_names.removeDuplicates();
+    streamline_options_widget_->setAvailableVectorFields(vector_field_names);
 
     // 尝试恢复之前的选择
     int index = field_combo_->findText(current_selection);
@@ -516,28 +471,8 @@ void MainWindow::onColorSchemeChanged(int index)
     ColorScheme scheme = static_cast<ColorScheme>(index);
     gl_widget_->setColorScheme(scheme);
 }
-
-void MainWindow::onVectorRenderModeChanged(int index)
-{
-    VectorRenderMode mode = static_cast<VectorRenderMode>(index);
     // gl_widget_->setVectorRenderMode(mode);
-    if (mode == VectorRenderMode::ARROW)
-    {
-        streamline_seed_widget_->hide();
-        gl_widget_->setSeedSphereEditingEnabled(false);
-        gl_widget_->getCaseData()->steps_[0].updateVectorBuffer();
-        gl_widget_->setRenderMode(Mode::ARROW);
-    }
-    else if (mode == VectorRenderMode::STREAMLINE)
-    {
-        streamline_seed_widget_->show();
-        gl_widget_->setSeedSphereEditingEnabled(true);
-        gl_widget_->setSeedSphereRadius(static_cast<float>(seed_radius_spin_->value()));
-        gl_widget_->setStreamlineSeedCount(seed_count_spin_->value());
-        onSeedSphereOffsetChanged();
-        // 保持当前普通渲染，等待用户点击“生成流线”后再切换。
-    }
-}
+    // Note: onVectorRenderModeChanged has been removed in favor of StreamlineOptionsWidget
 
 void MainWindow::onFpsUpdated(float fps)
 {
@@ -580,11 +515,8 @@ void MainWindow::onSeedSphereCountChanged(int value)
     gl_widget_->setStreamlineSeedCount(value);
 }
 
-void MainWindow::onSeedSphereOffsetChanged()
+void MainWindow::onSeedSphereOffsetChanged(const QVector3D& offset)
 {
-    const QVector3D offset(static_cast<float>(seed_offset_x_spin_->value()),
-                           static_cast<float>(seed_offset_y_spin_->value()),
-                           static_cast<float>(seed_offset_z_spin_->value()));
     gl_widget_->setSeedSphereOffset(offset);
 }
 
@@ -592,22 +524,73 @@ void MainWindow::onSeedSphereCenterChanged(const QVector3D& center, bool valid)
 {
     if (!valid)
     {
-        seed_center_label_->setText("中心: (无)");
+        streamline_options_widget_->setSeedSphereCenter(QVector3D(0, 0, 0));
         return;
     }
 
-    seed_center_label_->setText(QString("中心: (%1, %2, %3)")
-                                    .arg(center.x(), 0, 'f', 3)
-                                    .arg(center.y(), 0, 'f', 3)
-                                    .arg(center.z(), 0, 'f', 3));
+    streamline_options_widget_->setSeedSphereCenter(center);
 }
 
-void MainWindow::onGenerateStreamlinesClicked()
+void MainWindow::onStreamlineVectorFieldChanged(const QString& field_name)
 {
-    if (vector_render_mode_combo_->currentIndex() != static_cast<int>(VectorRenderMode::STREAMLINE))
+    if (field_name == "无")
     {
+        gl_widget_->setRenderMode(Mode::BASIC);
         return;
     }
 
+    gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
+    gl_widget_->setSeedSphereEditingEnabled(true);
+    gl_widget_->setRenderMode(Mode::ARROW);
+}
+
+void MainWindow::onStreamlineRenderModeChanged(int mode)
+{
+    // mode: 0 = solid, 1 = point cloud
+    // 对应Streamline的渲染模式
+    // 这可以在未来用于切换流线的渲染模式
+}
+
+void MainWindow::onStreamlineLodLevelChanged(LODLevel level)
+{
+    // 流线LOD级别变化处理
+    // TODO: 实现流线的LOD优化
+}
+
+void MainWindow::onGenerateStreamlinesRequested()
+{
+    // 获取当前选中的矢量场
+    QString vector_field = streamline_options_widget_->getSelectedVectorField();
+    if (vector_field.isEmpty())
+    {
+        qWarning() << "No vector field selected for streamline generation";
+        return;
+    }
+
+    CaseData* case_data = gl_widget_->getCaseData();
+    if (!case_data || case_data->steps_.empty())
+    {
+        qWarning() << "No case data available";
+        return;
+    }
+
+    // 激活矢量字段
+    Type field_type = case_data->steps_[0].activateField(vector_field.toStdString());
+    if (field_type != Type::VECTOR)
+    {
+        qWarning() << "Selected field is not a vector field";
+        return;
+    }
+
+    // 更新矢量缓冲区，确保GPU数据是最新的
+    case_data->steps_[0].updateVectorBuffer();
+
+    // 确保种子球编辑模式已启用
+    gl_widget_->setSeedSphereEditingEnabled(true);
+    
+    // 切换到流线渲染模式
+    gl_widget_->setRenderMode(Mode::STREAMLINE);
+    
+    // 生成流线
     gl_widget_->regenerateStreamlinesFromSeedSphere();
 }

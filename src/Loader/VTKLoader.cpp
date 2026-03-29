@@ -249,6 +249,7 @@ MeshPart VTK::VTKLoader::load()
     }
     // 4-从单元提取所有面
     // TODO:面提取VTK API
+    mesh_part.cells_.resize(static_cast<size_t>(num_cells_));
     mesh_part.faces_.reserve(num_cells_ * 6); // 粗略估计每个单元平均6个面
     for (vtkIdType cell_id = 0; cell_id < num_cells_; ++cell_id)
     {
@@ -270,6 +271,7 @@ MeshPart VTK::VTKLoader::load()
 #endif
 #define IDX(k) static_cast<uint32_t>(point_ids->GetId(k))
         Face face;
+        CellData& cell_data = mesh_part.cells_[static_cast<size_t>(cell_id)];
         switch (cell_type)
         {
             case VTK_TRIANGLE:
@@ -290,6 +292,12 @@ MeshPart VTK::VTKLoader::load()
             case VTK_TETRA:
                 if (!requirePoints(4, "VTK_TETRA"))
                     break;
+                cell_data.kind = CellKind::TETRA;
+                cell_data.num_points = 4;
+                for (uint8_t i = 0; i < 4; ++i)
+                {
+                    cell_data.point_ids[i] = IDX(i);
+                }
                 face.set3(IDX(0), IDX(1), IDX(3));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);
@@ -306,6 +314,12 @@ MeshPart VTK::VTKLoader::load()
             case VTK_HEXAHEDRON:
                 if (!requirePoints(8, "VTK_HEXAHEDRON"))
                     break;
+                cell_data.kind = CellKind::HEXAHEDRON;
+                cell_data.num_points = 8;
+                for (uint8_t i = 0; i < 8; ++i)
+                {
+                    cell_data.point_ids[i] = IDX(i);
+                }
                 face.set4(IDX(0), IDX(1), IDX(2), IDX(3));
                 face.cell_id = static_cast<uint32_t>(cell_id);
                 mesh_part.faces_.push_back(face);

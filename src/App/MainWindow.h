@@ -1,6 +1,7 @@
 #pragma once
 
 #include "GLWidget.h"
+#include "StreamlineOptionsWidget.h"
 #include <QMainWindow>
 #include <QMenu>
 #include <QAction>
@@ -31,8 +32,9 @@ private:
 
     GLWidget* gl_widget_;
     QDockWidget* render_dock_;
+    QDockWidget* streamline_dock_;
     QDockWidget* properties_dock_;
-
+    StreamlineOptionsWidget* streamline_options_widget_;
 
     QAction* openfile_;
     QAction* opendir_;
@@ -44,25 +46,14 @@ private:
     QLabel* lod_label_;
     std::string current_file_path_;
     
-    // render options widgets
+    // render options widgets (mesh rendering)
     QComboBox* mesh_render_mode_combo_;
     QComboBox* field_combo_;
     QWidget* field_options_widget_;
     QLabel* color_scheme_label_;
     QComboBox* color_scheme_combo_;
-    QLabel* vector_render_mode_label_;
-    QComboBox* vector_render_mode_combo_;
     QCheckBox* lod_enable_checkbox_;
 
-    // streamline seed sphere widgets
-    QWidget* streamline_seed_widget_;
-    QLabel* seed_center_label_;
-    QDoubleSpinBox* seed_radius_spin_;
-    QSpinBox* seed_count_spin_;
-    QDoubleSpinBox* seed_offset_x_spin_;
-    QDoubleSpinBox* seed_offset_y_spin_;
-    QDoubleSpinBox* seed_offset_z_spin_;
-    QPushButton* generate_streamline_button_;
     
 private slots:
     void openFile();
@@ -70,14 +61,18 @@ private slots:
     void onFieldSelectionChanged(int index);
     void onMeshRenderModeChanged(int index);
     void onColorSchemeChanged(int index);
-    void onVectorRenderModeChanged(int index);
     void onFpsUpdated(float fps);
     void onLodLevelChanged(LODLevel level);
     void onLodCheckBoxToggled(bool checked);
+    void onSeedSphereCenterChanged(const QVector3D& center, bool valid);
+
+    // Streamline options signals
+    void onStreamlineVectorFieldChanged(const QString& field_name);
+    void onStreamlineRenderModeChanged(int mode);
+    void onStreamlineLodLevelChanged(LODLevel level);
     void onSeedSphereRadiusChanged(double value);
     void onSeedSphereCountChanged(int value);
-    void onSeedSphereOffsetChanged();
-    void onSeedSphereCenterChanged(const QVector3D& center, bool valid);
-    void onGenerateStreamlinesClicked();
+    void onSeedSphereOffsetChanged(const QVector3D& offset);
+    void onGenerateStreamlinesRequested();
 
 };
