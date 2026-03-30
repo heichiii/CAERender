@@ -52,6 +52,8 @@ private:
     QWidget* field_options_widget_;
     QLabel* color_scheme_label_;
     QComboBox* color_scheme_combo_;
+    QLabel* vector_render_mode_label_;
+    QComboBox* vector_render_mode_combo_;
     QCheckBox* lod_enable_checkbox_;
 
     
@@ -61,6 +63,7 @@ private slots:
     void onFieldSelectionChanged(int index);
     void onMeshRenderModeChanged(int index);
     void onColorSchemeChanged(int index);
+    void onVectorRenderModeChanged(int index);
     void onFpsUpdated(float fps);
     void onLodLevelChanged(LODLevel level);
     void onLodCheckBoxToggled(bool checked);

@@ -63,6 +63,8 @@ public:
     void setColorScheme(ColorScheme scheme);
     void setUseFieldColoring(bool use);
     void setVectorRenderMode(VectorRenderMode mode);
+    void setMeshVisible(bool visible);
+    void setStreamlineVisible(bool visible);
     
     void setMode(Mode mode);
     
@@ -91,6 +93,14 @@ public:
     bool isUsingFieldColoring() const
     {
         return use_field_coloring_;
+    }
+    bool isMeshVisible() const
+    {
+        return show_mesh_;
+    }
+    bool isStreamlineVisible() const
+    {
+        return show_streamline_;
     }
     // VectorRenderMode getVectorRenderMode() const
     // {
@@ -145,6 +155,8 @@ private:
     MeshRenderMode mesh_render_mode_;
     ColorScheme color_scheme_;
     bool use_field_coloring_;
+    bool show_mesh_;
+    bool show_streamline_;
     // VectorRenderMode vector_render_mode_;
     LODLevel lod_level_;
     

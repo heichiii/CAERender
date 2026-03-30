@@ -63,7 +63,7 @@ void MainWindow::setupUI()
     render_layout->addWidget(lod_group);
 
     // 场量选择
-    auto* field_group = new QGroupBox("场量(标量)");
+    auto* field_group = new QGroupBox("场量");
     auto* field_layout = new QVBoxLayout();
     field_combo_ = new QComboBox();
     field_combo_->addItem("无");
@@ -87,9 +87,19 @@ void MainWindow::setupUI()
     options_layout->addWidget(color_scheme_label_);
     options_layout->addWidget(color_scheme_combo_);
 
+    // 向量场渲染方式（Arrow / Magnitude）
+    vector_render_mode_label_ = new QLabel("向量渲染:");
+    vector_render_mode_combo_ = new QComboBox();
+    vector_render_mode_combo_->addItem("Arrow");
+    vector_render_mode_combo_->addItem("Magnitude");
+    options_layout->addWidget(vector_render_mode_label_);
+    options_layout->addWidget(vector_render_mode_combo_);
+
     // 默认隐藏色彩方案
     color_scheme_label_->hide();
     color_scheme_combo_->hide();
+    vector_render_mode_label_->hide();
+    vector_render_mode_combo_->hide();
 
     render_layout->addWidget(field_options_widget_);
     render_layout->addStretch();
@@ -112,6 +122,9 @@ void MainWindow::setupUI()
     // 连接配色方案
     connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onColorSchemeChanged);
+
+        connect(vector_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &MainWindow::onVectorRenderModeChanged);
 
     // 创建 Streamline Options Dock
     streamline_dock_ = new QDockWidget("Streamline Options", this);
@@ -236,6 +249,21 @@ void MainWindow::setupMenus()
                 QSignalBlocker blocker2(propertiesCheckBox);
                 propertiesCheckBox->setChecked(visible);
             });
+
+        QMenu* display = menuBar()->addMenu("&Display");
+        QAction* showMeshAction = display->addAction("Show Entity Model");
+        showMeshAction->setCheckable(true);
+        showMeshAction->setChecked(true);
+
+        QAction* showStreamlineAction = display->addAction("Show Streamlines");
+        showStreamlineAction->setCheckable(true);
+        showStreamlineAction->setChecked(true);
+
+        connect(showMeshAction, &QAction::toggled, this,
+            [this](bool checked) { gl_widget_->setMeshVisible(checked); });
+
+        connect(showStreamlineAction, &QAction::toggled, this,
+            [this](bool checked) { gl_widget_->setStreamlineVisible(checked); });
 }
 void MainWindow::test_openFile()
 {
@@ -356,12 +384,15 @@ void MainWindow::onFieldSelectionChanged(int index)
     // 隐藏所有场量选项
     color_scheme_label_->hide();
     color_scheme_combo_->hide();
+    vector_render_mode_label_->hide();
+    vector_render_mode_combo_->hide();
 
     if (index == 0) // "无"选项
     {
         gl_widget_->getCaseData()->steps_[0].activateField("无");
         gl_widget_->setUseFieldColoring(false);
         gl_widget_->setRenderMode(Mode::BASIC);
+        gl_widget_->setSeedSphereEditingEnabled(false);
         return;
     }
 
@@ -370,10 +401,20 @@ void MainWindow::onFieldSelectionChanged(int index)
     Type field_type = gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
     if (field_type == Type::SCALAR)
     {
+        gl_widget_->setSeedSphereEditingEnabled(false);
         gl_widget_->setRenderMode(Mode::BASIC);
         gl_widget_->setUseFieldColoring(true);
         color_scheme_label_->show();
         color_scheme_combo_->show();
+    }
+    else if (field_type == Type::VECTOR)
+    {
+        gl_widget_->setSeedSphereEditingEnabled(false);
+        color_scheme_label_->show();
+        color_scheme_combo_->show();
+        vector_render_mode_label_->show();
+        vector_render_mode_combo_->show();
+        onVectorRenderModeChanged(vector_render_mode_combo_->currentIndex());
     }
 }
 
@@ -396,7 +437,7 @@ void MainWindow::updateFieldList()
 
     // 收集所有标量字段名称（去重）和所有矢量字段名称
     QSet<QString> scalar_field_names;
-    QStringList vector_field_names;
+    QSet<QString> vector_field_name_set;
 
     for (const auto& part : time_step.parts_)
     {
@@ -409,7 +450,7 @@ void MainWindow::updateFieldList()
             }
             else if (field.type_ == Type::VECTOR)
             {
-                vector_field_names.append(QString::fromStdString(field.name_));
+                vector_field_name_set.insert(QString::fromStdString(field.name_));
             }
         }
 
@@ -422,7 +463,7 @@ void MainWindow::updateFieldList()
             }
             else if (field.type_ == Type::VECTOR)
             {
-                vector_field_names.append(QString::fromStdString(field.name_));
+                vector_field_name_set.insert(QString::fromStdString(field.name_));
             }
         }
     }
@@ -436,10 +477,15 @@ void MainWindow::updateFieldList()
         field_combo_->addItem(name);
     }
 
+    QList<QString> sorted_vector_names = vector_field_name_set.values();
+    std::sort(sorted_vector_names.begin(), sorted_vector_names.end());
+    for (const QString& name : sorted_vector_names)
+    {
+        field_combo_->addItem(name);
+    }
+
     // 更新流线选项中的矢量场列表
-    vector_field_names.removeAll(""); // 移除空值
-    std::sort(vector_field_names.begin(), vector_field_names.end());
-    vector_field_names.removeDuplicates();
+    QStringList vector_field_names = sorted_vector_names;
     streamline_options_widget_->setAvailableVectorFields(vector_field_names);
 
     // 尝试恢复之前的选择
@@ -470,6 +516,33 @@ void MainWindow::onColorSchemeChanged(int index)
 {
     ColorScheme scheme = static_cast<ColorScheme>(index);
     gl_widget_->setColorScheme(scheme);
+}
+
+void MainWindow::onVectorRenderModeChanged(int index)
+{
+    const CaseData* case_data = gl_widget_->getCaseData();
+    if (!case_data || case_data->steps_.empty() || case_data->steps_[0].parts_.empty())
+    {
+        return;
+    }
+
+    const Field* active_field = case_data->steps_[0].parts_[0].active_field_;
+    if (!active_field || active_field->type_ != Type::VECTOR)
+    {
+        return;
+    }
+
+    // 0: Arrow (几何箭头), 1: Magnitude (基础网格三种模式 + 幅值上色)
+    if (index == 0)
+    {
+        gl_widget_->setUseFieldColoring(false);
+        gl_widget_->setRenderMode(Mode::ARROW);
+    }
+    else
+    {
+        gl_widget_->setRenderMode(Mode::BASIC);
+        gl_widget_->setUseFieldColoring(true);
+    }
 }
     // gl_widget_->setVectorRenderMode(mode);
     // Note: onVectorRenderModeChanged has been removed in favor of StreamlineOptionsWidget

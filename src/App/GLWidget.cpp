@@ -264,7 +264,13 @@ void GLWidget::drawColorbarOverlay()
     QString title;
     if (renderer_.getMode() == Mode::BASIC)
     {
-        title = "Scalar";
+        bool vector_magnitude_mode = false;
+        if (!case_data_.steps_.empty() && !case_data_.steps_[0].parts_.empty())
+        {
+            const Field* active_field = case_data_.steps_[0].parts_[0].active_field_;
+            vector_magnitude_mode = active_field && active_field->type_ == Type::VECTOR;
+        }
+        title = vector_magnitude_mode ? "Vector Magnitude" : "Scalar";
     }
     else if (renderer_.getMode() == Mode::ARROW)
     {
@@ -465,6 +471,20 @@ void GLWidget::setUseFieldColoring(bool use)
 {
     makeCurrent();
     renderer_.setUseFieldColoring(use);
+    update();
+}
+
+void GLWidget::setMeshVisible(bool visible)
+{
+    makeCurrent();
+    renderer_.setMeshVisible(visible);
+    update();
+}
+
+void GLWidget::setStreamlineVisible(bool visible)
+{
+    makeCurrent();
+    renderer_.setStreamlineVisible(visible);
     update();
 }
 

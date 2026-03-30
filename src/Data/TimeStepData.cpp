@@ -365,8 +365,24 @@ void TimeStepData::updateVectorBuffer()
         gpu_data_.vector_field_magnitudes_.push_back(magnitude);
     }
 
+    if (gpu_data_.vector_field_magnitudes_.empty())
+    {
+        gpu_data_.vector_magnitude_min_ = 0.0f;
+        gpu_data_.vector_magnitude_max_ = 1.0f;
+        gpu_data_.scalar_fields_.clear();
+        gpu_data_.scalar_min_ = 0.0f;
+        gpu_data_.scalar_max_ = 1.0f;
+        return;
+    }
+
     gpu_data_.vector_magnitude_min_ = min_magnitude;
     gpu_data_.vector_magnitude_max_ = max_magnitude;
+
+    // Magnitude 模式复用基础网格着色通道：
+    // 将矢量幅值写入 scalar_fields_，这样 BASIC 模式可直接按三种网格模式显示并用幅值着色。
+    gpu_data_.scalar_fields_ = gpu_data_.vector_field_magnitudes_;
+    gpu_data_.scalar_min_ = gpu_data_.vector_magnitude_min_;
+    gpu_data_.scalar_max_ = gpu_data_.vector_magnitude_max_;
 
    
 

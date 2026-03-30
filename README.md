@@ -44,6 +44,8 @@
 1. GPU切换 
 2. class-struct
 3. openfoam集成
+4. 光照优化
+5. 箭头渲染
 
 
 

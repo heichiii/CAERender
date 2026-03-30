@@ -193,8 +193,8 @@ Renderer::Renderer()
         arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), pick_point_vbo_(QOpenGLBuffer::VertexBuffer),
             seed_sphere_vbo_(QOpenGLBuffer::VertexBuffer),
     mesh_render_mode_(MeshRenderMode::SOLID),
-            color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false), mode_(Mode::BASIC),
-            lod_level_(LODLevel::HIGH)
+            color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false), show_mesh_(true),
+            show_streamline_(true), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
     //   vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
 // render_vector_(false)
 {
@@ -270,17 +270,29 @@ void Renderer::render(const Camera& camera)
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    // 总是渲染基础网格（作为背景）
-    renderBasic(camera);
-    
-    // 根据模式在网格上叠加渲染箭头或流线
-    if (mode_ == Mode::ARROW)
+    // 根据模式选择渲染路径：
+    // BASIC: 网格渲染；ARROW: 仅箭头；STREAMLINE: 可叠加网格与流线。
+    if (mode_ == Mode::BASIC)
+    {
+        if (show_mesh_)
+        {
+            renderBasic(camera);
+        }
+    }
+    else if (mode_ == Mode::ARROW)
     {
         renderArrows(camera);
     }
     else if (mode_ == Mode::STREAMLINE)
     {
-        renderStreamlines(camera);
+        if (show_mesh_)
+        {
+            renderBasic(camera);
+        }
+        if (show_streamline_)
+        {
+            renderStreamlines(camera);
+        }
     }
 
     if (has_picked_point_)
@@ -322,6 +334,16 @@ void Renderer::setColorScheme(ColorScheme scheme)
 void Renderer::setUseFieldColoring(bool use)
 {
     use_field_coloring_ = use;
+}
+
+void Renderer::setMeshVisible(bool visible)
+{
+    show_mesh_ = visible;
+}
+
+void Renderer::setStreamlineVisible(bool visible)
+{
+    show_streamline_ = visible;
 }
 
 // void Renderer::setVectorRenderMode(VectorRenderMode mode)
