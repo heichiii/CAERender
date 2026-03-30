@@ -6,21 +6,14 @@
 #include <QCheckBox>
 #include <QComboBox>
 #include <QDebug>
-#include <QDoubleSpinBox>
 #include <QDir>
 #include <QFileDialog>
-#include <QGroupBox>
-#include <QHBoxLayout>
 #include <QLabel>
 #include <QMenuBar>
-#include <QPushButton>
 #include <QSet>
 #include <QSignalBlocker>
-#include <QSpinBox>
-#include <QVBoxLayout>
-#include <QWidget>
-#include <QWidgetAction>
 #include <QStatusBar>
+#include <QWidgetAction>
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     setWindowTitle("CAE Renderer");
@@ -31,112 +24,50 @@ MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 
 void MainWindow::setupUI()
 {
+    /*GLWidget Begin*/
     gl_widget_ = new GLWidget(this);
     setCentralWidget(gl_widget_);
+    /*GLWidget End*/
 
-    // 创建 Render Options Dock (仅用于网格和场量)
+
+    /*Basic Render Options Dock Begin*/
     render_dock_ = new QDockWidget("Render Options", this);
     render_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-
-    // 创建 render_dock_ 的内容面板
-    auto* render_widget = new QWidget();
-    auto* render_layout = new QVBoxLayout(render_widget);
-
-    // 基础网格渲染模式
-    auto* mesh_group = new QGroupBox("基础网格");
-    auto* mesh_layout = new QVBoxLayout();
-    mesh_render_mode_combo_ = new QComboBox();
-    mesh_render_mode_combo_->addItem("实体渲染");
-    mesh_render_mode_combo_->addItem("点云渲染");
-    mesh_render_mode_combo_->addItem("线框渲染");
-    mesh_layout->addWidget(mesh_render_mode_combo_);
-    mesh_group->setLayout(mesh_layout);
-    render_layout->addWidget(mesh_group);
-
-    // LOD控制
-    auto* lod_group = new QGroupBox("LOD优化");
-    auto* lod_layout = new QVBoxLayout();
-    lod_enable_checkbox_ = new QCheckBox("启用LOD");
-    lod_enable_checkbox_->setChecked(true);
-    lod_layout->addWidget(lod_enable_checkbox_);
-    lod_group->setLayout(lod_layout);
-    render_layout->addWidget(lod_group);
-
-    // 场量选择
-    auto* field_group = new QGroupBox("场量");
-    auto* field_layout = new QVBoxLayout();
-    field_combo_ = new QComboBox();
-    field_combo_->addItem("无");
-    field_layout->addWidget(field_combo_);
-    field_group->setLayout(field_layout);
-    render_layout->addWidget(field_group);
-
-    // 场量选项（仅用于标量场）
-    field_options_widget_ = new QWidget();
-    auto* options_layout = new QVBoxLayout(field_options_widget_);
-    options_layout->setContentsMargins(0, 0, 0, 0);
-
-    // 配色方案（用于标量场）
-    color_scheme_label_ = new QLabel("配色方案:");
-    color_scheme_combo_ = new QComboBox();
-    color_scheme_combo_->addItem("彩虹");
-    color_scheme_combo_->addItem("热力图");
-    color_scheme_combo_->addItem("冷暖");
-    color_scheme_combo_->addItem("灰度");
-    color_scheme_combo_->addItem("蓝白红");
-    options_layout->addWidget(color_scheme_label_);
-    options_layout->addWidget(color_scheme_combo_);
-
-    // 向量场渲染方式（Arrow / Magnitude）
-    vector_render_mode_label_ = new QLabel("向量渲染:");
-    vector_render_mode_combo_ = new QComboBox();
-    vector_render_mode_combo_->addItem("Arrow");
-    vector_render_mode_combo_->addItem("Magnitude");
-    options_layout->addWidget(vector_render_mode_label_);
-    options_layout->addWidget(vector_render_mode_combo_);
-
-    // 默认隐藏色彩方案
-    color_scheme_label_->hide();
-    color_scheme_combo_->hide();
-    vector_render_mode_label_->hide();
-    vector_render_mode_combo_->hide();
-
-    render_layout->addWidget(field_options_widget_);
-    render_layout->addStretch();
-
-    render_widget->setLayout(render_layout);
-    render_dock_->setWidget(render_widget);
+    render_options_widget_ = new RenderOptionsWidget(this);
+    render_dock_->setWidget(render_options_widget_);
     addDockWidget(Qt::LeftDockWidgetArea, render_dock_);
-
-    // 连接信号
-    connect(field_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+    // 连接场量选择信号
+    connect(render_options_widget_->fieldCombo(),
+            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onFieldSelectionChanged);
-
     // 连接基础网格渲染模式
-    connect(mesh_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+    connect(render_options_widget_->meshRenderModeCombo(),
+            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onMeshRenderModeChanged);
-
     // 连接LOD复选框
-    connect(lod_enable_checkbox_, &QCheckBox::toggled, this, &MainWindow::onLodCheckBoxToggled);
-
+    connect(render_options_widget_->lodCheckBox(), &QCheckBox::toggled, this,
+            &MainWindow::onLodCheckBoxToggled);
     // 连接配色方案
-    connect(color_scheme_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+    connect(render_options_widget_->colorSchemeCombo(),
+            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onColorSchemeChanged);
-
-        connect(vector_render_mode_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+    // 连接向量渲染模式
+    connect(render_options_widget_->vectorRenderModeCombo(),
+            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onVectorRenderModeChanged);
+    /*Basic Render Options Dock End*/
 
-    // 创建 Streamline Options Dock
+
+    /* Streamline Options Dock Begin */
     streamline_dock_ = new QDockWidget("Streamline Options", this);
     streamline_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-    
     streamline_options_widget_ = new StreamlineOptionsWidget(gl_widget_, this);
     streamline_dock_->setWidget(streamline_options_widget_);
     addDockWidget(Qt::LeftDockWidgetArea, streamline_dock_);
-
+    streamline_dock_->setVisible(false); // 默认隐藏，用户可以通过菜单显示
     // 连接流线选项信号
-    connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineVectorFieldChanged, this,
-            &MainWindow::onStreamlineVectorFieldChanged);
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineVectorFieldChanged,
+            this, &MainWindow::onStreamlineVectorFieldChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineRenderModeChanged, this,
             &MainWindow::onStreamlineRenderModeChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineLodLevelChanged, this,
@@ -147,52 +78,35 @@ void MainWindow::setupUI()
             &MainWindow::onSeedSphereCountChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::seedSphereOffsetChanged, this,
             &MainWindow::onSeedSphereOffsetChanged);
-    connect(streamline_options_widget_, &StreamlineOptionsWidget::generateStreamlinesRequested, this,
-            &MainWindow::onGenerateStreamlinesRequested);
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::generateStreamlinesRequested,
+            this, &MainWindow::onGenerateStreamlinesRequested);
+    /* Streamline Options Dock End */
 
-    // 创建 Properties Dock
+
+    /* Properties Dock Begin */
     properties_dock_ = new QDockWidget("Properties", this);
     properties_dock_->setAllowedAreas(Qt::LeftDockWidgetArea | Qt::RightDockWidgetArea);
-
-    // 创建 properties_dock_ 的内容面板
-    auto* properties_widget = new QWidget();
-    auto* layout = new QVBoxLayout(properties_widget);
-
-    file_path_label_ = new QLabel("File: No file loaded");
-    file_path_label_->setWordWrap(true);
-    layout->addWidget(new QLabel("<b>File Path:</b>"));
-    layout->addWidget(file_path_label_);
-
-    layout->addSpacing(10);
-
-    info_label_ = new QLabel();
-    info_label_->setWordWrap(true);
-    info_label_->setAlignment(Qt::AlignTop | Qt::AlignLeft);
-    layout->addWidget(new QLabel("<b>Mesh & Field Info:</b>"));
-    layout->addWidget(info_label_);
-
-    layout->addStretch();
-    properties_widget->setLayout(layout);
-    properties_dock_->setWidget(properties_widget);
-
+    properties_panel_widget_ = new PropertiesPanelWidget(this);
+    properties_dock_->setWidget(properties_panel_widget_);
     addDockWidget(Qt::RightDockWidgetArea, properties_dock_);
-    
-    // 创建 Status Bar 显示帧率和LOD级别
-    fps_label_ = new QLabel("FPS: 0.0", this);
-    fps_label_->setAlignment(Qt::AlignLeft);
-    fps_label_->setMinimumWidth(100);
-    statusBar()->addWidget(fps_label_);
-    
-    lod_label_ = new QLabel("LOD: HIGH", this);
-    lod_label_->setAlignment(Qt::AlignLeft);
-    lod_label_->setMinimumWidth(120);
-    statusBar()->addWidget(lod_label_);
-    
     // 连接GLWidget的信号
     connect(gl_widget_, &GLWidget::fpsUpdated, this, &MainWindow::onFpsUpdated);
     connect(gl_widget_, &GLWidget::lodLevelChanged, this, &MainWindow::onLodLevelChanged);
     connect(gl_widget_, &GLWidget::seedSphereCenterChanged, this,
             &MainWindow::onSeedSphereCenterChanged);
+    /* Properties Dock End */
+
+    /* Status Bar Begin */
+    fps_label_ = new QLabel("FPS: 0.0", this);
+    fps_label_->setAlignment(Qt::AlignLeft);
+    fps_label_->setMinimumWidth(100);
+    statusBar()->addWidget(fps_label_);
+
+    lod_label_ = new QLabel("LOD: HIGH", this);
+    lod_label_->setAlignment(Qt::AlignLeft);
+    lod_label_->setMinimumWidth(100);
+    statusBar()->addWidget(lod_label_);
+    /* Status Bar End */
 }
 
 void MainWindow::setupMenus()
@@ -204,65 +118,50 @@ void MainWindow::setupMenus()
     connect(opendir_, &QAction::triggered, this, &MainWindow::openDirectory);
 
     QMenu* view = menuBar()->addMenu("&View");
-    auto* renderOptionsAction = new QWidgetAction(view);
-    auto* renderOptionsCheckBox = new QCheckBox("Render Options", view);
-    auto* streamlineOptionsAction = new QWidgetAction(view);
-    auto* streamlineOptionsCheckBox = new QCheckBox("Streamline Options", view);
-    auto* propertiesAction = new QWidgetAction(view);
-    auto* propertiesCheckBox = new QCheckBox("Properties", view);
-    renderOptionsCheckBox->setChecked(true);
-    streamlineOptionsCheckBox->setChecked(true);
-    propertiesCheckBox->setChecked(true);
-    renderOptionsAction->setDefaultWidget(renderOptionsCheckBox);
-    streamlineOptionsAction->setDefaultWidget(streamlineOptionsCheckBox);
-    propertiesAction->setDefaultWidget(propertiesCheckBox);
-    view->addAction(renderOptionsAction);
-    view->addAction(streamlineOptionsAction);
-    view->addAction(propertiesAction);
-
-    connect(renderOptionsCheckBox, &QCheckBox::toggled, this,
+    QAction* showRenderOptionsAction = view->addAction("Render Options");
+    showRenderOptionsAction->setCheckable(true);
+    showRenderOptionsAction->setChecked(render_dock_->isVisible());
+    QAction* showStreamlineOptionsAction = view->addAction("Streamline Options");
+    showStreamlineOptionsAction->setCheckable(true);
+    showStreamlineOptionsAction->setChecked(streamline_dock_->isVisible());
+    QAction* showPropertiesAction = view->addAction("Properties");
+    showPropertiesAction->setCheckable(true);
+    showPropertiesAction->setChecked(properties_dock_->isVisible());
+    connect(showRenderOptionsAction, &QAction::toggled, this,
             [this](bool checked) { render_dock_->setVisible(checked); });
-
-    connect(streamlineOptionsCheckBox, &QCheckBox::toggled, this,
+    connect(showStreamlineOptionsAction, &QAction::toggled, this,
             [this](bool checked) { streamline_dock_->setVisible(checked); });
-
-    connect(propertiesCheckBox, &QCheckBox::toggled, this,
+    connect(showPropertiesAction, &QAction::toggled, this,
             [this](bool checked) { properties_dock_->setVisible(checked); });
-
     connect(render_dock_, &QDockWidget::visibilityChanged, this,
-            [renderOptionsCheckBox](bool visible)
+            [showRenderOptionsAction](bool visible)
             {
-                QSignalBlocker blocker1(renderOptionsCheckBox);
-                renderOptionsCheckBox->setChecked(visible);
+                QSignalBlocker blocker1(showRenderOptionsAction);
+                showRenderOptionsAction->setChecked(visible);
             });
-
     connect(streamline_dock_, &QDockWidget::visibilityChanged, this,
-            [streamlineOptionsCheckBox](bool visible)
+            [showStreamlineOptionsAction](bool visible)
             {
-                QSignalBlocker blocker2_streamline(streamlineOptionsCheckBox);
-                streamlineOptionsCheckBox->setChecked(visible);
+                QSignalBlocker blocker2_streamline(showStreamlineOptionsAction);
+                showStreamlineOptionsAction->setChecked(visible);
             });
-
     connect(properties_dock_, &QDockWidget::visibilityChanged, this,
-            [propertiesCheckBox](bool visible)
+            [showPropertiesAction](bool visible)
             {
-                QSignalBlocker blocker2(propertiesCheckBox);
-                propertiesCheckBox->setChecked(visible);
+                QSignalBlocker blocker2(showPropertiesAction);
+                showPropertiesAction->setChecked(visible);
             });
 
-        QMenu* display = menuBar()->addMenu("&Display");
-        QAction* showMeshAction = display->addAction("Show Entity Model");
-        showMeshAction->setCheckable(true);
-        showMeshAction->setChecked(true);
-
-        QAction* showStreamlineAction = display->addAction("Show Streamlines");
-        showStreamlineAction->setCheckable(true);
-        showStreamlineAction->setChecked(true);
-
-        connect(showMeshAction, &QAction::toggled, this,
+    QMenu* display = menuBar()->addMenu("&Display");
+    QAction* showMeshAction = display->addAction("Show Entity Model");
+    showMeshAction->setCheckable(true);
+    showMeshAction->setChecked(true);
+    QAction* showStreamlineAction = display->addAction("Show Streamlines");
+    showStreamlineAction->setCheckable(true);
+    showStreamlineAction->setChecked(true);
+    connect(showMeshAction, &QAction::toggled, this,
             [this](bool checked) { gl_widget_->setMeshVisible(checked); });
-
-        connect(showStreamlineAction, &QAction::toggled, this,
+    connect(showStreamlineAction, &QAction::toggled, this,
             [this](bool checked) { gl_widget_->setStreamlineVisible(checked); });
 }
 void MainWindow::test_openFile()
@@ -292,12 +191,12 @@ void MainWindow::openFile()
 }
 void MainWindow::updatePropertiesPanel()
 {
-    file_path_label_->setText(QString::fromStdString(current_file_path_));
+    properties_panel_widget_->setFilePathText(QString::fromStdString(current_file_path_));
 
     const CaseData* case_data = gl_widget_->getCaseData();
     if (!case_data || case_data->steps_.empty())
     {
-        info_label_->setText("No data loaded.");
+        properties_panel_widget_->setInfoText("No data loaded.");
         return;
     }
 
@@ -371,7 +270,7 @@ void MainWindow::updatePropertiesPanel()
         }
     }
 
-    info_label_->setText(text);
+    properties_panel_widget_->setInfoText(text);
 }
 
 void MainWindow::openDirectory()
@@ -382,10 +281,7 @@ void MainWindow::openDirectory()
 void MainWindow::onFieldSelectionChanged(int index)
 {
     // 隐藏所有场量选项
-    color_scheme_label_->hide();
-    color_scheme_combo_->hide();
-    vector_render_mode_label_->hide();
-    vector_render_mode_combo_->hide();
+    render_options_widget_->hideFieldOptions();
 
     if (index == 0) // "无"选项
     {
@@ -396,7 +292,7 @@ void MainWindow::onFieldSelectionChanged(int index)
         return;
     }
 
-    QString field_name = field_combo_->currentText();
+    QString field_name = render_options_widget_->currentField();
 
     Type field_type = gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
     if (field_type == Type::SCALAR)
@@ -404,28 +300,20 @@ void MainWindow::onFieldSelectionChanged(int index)
         gl_widget_->setSeedSphereEditingEnabled(false);
         gl_widget_->setRenderMode(Mode::BASIC);
         gl_widget_->setUseFieldColoring(true);
-        color_scheme_label_->show();
-        color_scheme_combo_->show();
+        render_options_widget_->showScalarOptions();
     }
     else if (field_type == Type::VECTOR)
     {
         gl_widget_->setSeedSphereEditingEnabled(false);
-        color_scheme_label_->show();
-        color_scheme_combo_->show();
-        vector_render_mode_label_->show();
-        vector_render_mode_combo_->show();
-        onVectorRenderModeChanged(vector_render_mode_combo_->currentIndex());
+        render_options_widget_->showVectorOptions();
+        onVectorRenderModeChanged(render_options_widget_->vectorRenderModeIndex());
     }
 }
 
 void MainWindow::updateFieldList()
 {
     // 保存当前选择
-    QString current_selection = field_combo_->currentText();
-
-    // 清空并重新填充场量列表
-    field_combo_->clear();
-    field_combo_->addItem("无");
+    QString current_selection = render_options_widget_->currentField();
 
     const CaseData* case_data = gl_widget_->getCaseData();
     if (!case_data || case_data->steps_.empty())
@@ -468,42 +356,29 @@ void MainWindow::updateFieldList()
         }
     }
 
-    // 按字母顺序排序并添加标量字段到下拉框
+    // 按字母顺序组织场量列表（先标量后向量）
     QList<QString> sorted_scalar_names = scalar_field_names.values();
     std::sort(sorted_scalar_names.begin(), sorted_scalar_names.end());
 
-    for (const QString& name : sorted_scalar_names)
-    {
-        field_combo_->addItem(name);
-    }
-
     QList<QString> sorted_vector_names = vector_field_name_set.values();
     std::sort(sorted_vector_names.begin(), sorted_vector_names.end());
+
+    QStringList all_fields;
+    all_fields << "无";
+    for (const QString& name : sorted_scalar_names)
+    {
+        all_fields << name;
+    }
     for (const QString& name : sorted_vector_names)
     {
-        field_combo_->addItem(name);
+        all_fields << name;
     }
+
+    render_options_widget_->setFieldItems(all_fields, current_selection);
 
     // 更新流线选项中的矢量场列表
     QStringList vector_field_names = sorted_vector_names;
     streamline_options_widget_->setAvailableVectorFields(vector_field_names);
-
-    // 尝试恢复之前的选择
-    int index = field_combo_->findText(current_selection);
-    if (index >= 0)
-    {
-        field_combo_->setCurrentIndex(index);
-    }
-    else
-    {
-        field_combo_->setCurrentIndex(0); // 默认选择"无"
-    }
-}
-
-void MainWindow::updateFieldOptions()
-{
-    // 当场量列表更新时，更新场量选项
-    onFieldSelectionChanged(field_combo_->currentIndex());
 }
 
 void MainWindow::onMeshRenderModeChanged(int index)
@@ -544,8 +419,8 @@ void MainWindow::onVectorRenderModeChanged(int index)
         gl_widget_->setUseFieldColoring(true);
     }
 }
-    // gl_widget_->setVectorRenderMode(mode);
-    // Note: onVectorRenderModeChanged has been removed in favor of StreamlineOptionsWidget
+// gl_widget_->setVectorRenderMode(mode);
+// Note: onVectorRenderModeChanged has been removed in favor of StreamlineOptionsWidget
 
 void MainWindow::onFpsUpdated(float fps)
 {
@@ -614,7 +489,7 @@ void MainWindow::onStreamlineVectorFieldChanged(const QString& field_name)
 
     gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
     gl_widget_->setSeedSphereEditingEnabled(true);
-    gl_widget_->setRenderMode(Mode::ARROW);
+    // gl_widget_->setRenderMode(Mode::ARROW);
 }
 
 void MainWindow::onStreamlineRenderModeChanged(int mode)
@@ -660,10 +535,10 @@ void MainWindow::onGenerateStreamlinesRequested()
 
     // 确保种子球编辑模式已启用
     gl_widget_->setSeedSphereEditingEnabled(true);
-    
+
     // 切换到流线渲染模式
     gl_widget_->setRenderMode(Mode::STREAMLINE);
-    
+
     // 生成流线
     gl_widget_->regenerateStreamlinesFromSeedSphere();
 }

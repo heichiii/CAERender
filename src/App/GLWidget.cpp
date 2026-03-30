@@ -511,7 +511,7 @@ void GLWidget::setRenderMode(Mode mode)
             step.gpu_data_.streamline_line_counts_.clear();
             step.gpu_data_.streamline_magnitude_min_ = 0.0f;
             step.gpu_data_.streamline_magnitude_max_ = 1.0f;
-            renderer_.setMode(Mode::STREAMLINE);
+            // renderer_.setMode(Mode::STREAMLINE);
         }
         syncSeedSphereToRenderer();
     }

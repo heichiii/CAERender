@@ -1,6 +1,8 @@
 #pragma once
 
 #include "GLWidget.h"
+#include "PropertiesPanelWidget.h"
+#include "RenderOptionsWidget.h"
 #include "StreamlineOptionsWidget.h"
 #include <QMainWindow>
 #include <QMenu>
@@ -8,12 +10,7 @@
 #include <QWidgetAction>
 #include <QDockWidget>
 #include <QLabel>
-#include <QComboBox>
-#include <QCheckBox>
-#include <QPushButton>
 #include <QVector3D>
-#include <QDoubleSpinBox>
-#include <QSpinBox>
 #include <string>
 class MainWindow : public QMainWindow
 {
@@ -28,33 +25,25 @@ private:
     void setupMenus();
     void updatePropertiesPanel();
     void updateFieldList();
-    void updateFieldOptions();
 
+    // UI components
     GLWidget* gl_widget_;
     QDockWidget* render_dock_;
     QDockWidget* streamline_dock_;
     QDockWidget* properties_dock_;
+    RenderOptionsWidget* render_options_widget_;
+    PropertiesPanelWidget* properties_panel_widget_;
     StreamlineOptionsWidget* streamline_options_widget_;
 
+    //Menu actions
     QAction* openfile_;
     QAction* opendir_;
     
-    // properties panel widgets
-    QLabel* file_path_label_;
-    QLabel* info_label_;
+    // Status bar labels
     QLabel* fps_label_;
     QLabel* lod_label_;
+
     std::string current_file_path_;
-    
-    // render options widgets (mesh rendering)
-    QComboBox* mesh_render_mode_combo_;
-    QComboBox* field_combo_;
-    QWidget* field_options_widget_;
-    QLabel* color_scheme_label_;
-    QComboBox* color_scheme_combo_;
-    QLabel* vector_render_mode_label_;
-    QComboBox* vector_render_mode_combo_;
-    QCheckBox* lod_enable_checkbox_;
 
     
 private slots:

@@ -11,34 +11,6 @@
 
 namespace
 {
-static const char* kPickPointVertexShader = R"(
-#version 450 core
-layout(location = 0) in vec3 a_pos;
-
-uniform mat4 u_model;
-uniform mat4 u_view;
-uniform mat4 u_projection;
-uniform float u_point_size;
-
-void main()
-{
-    gl_PointSize = u_point_size;
-    gl_Position = u_projection * u_view * u_model * vec4(a_pos, 1.0);
-}
-)";
-
-static const char* kPickPointFragmentShader = R"(
-#version 450 core
-out vec4 frag_color;
-
-uniform vec3 u_color;
-
-void main()
-{
-    frag_color = vec4(u_color, 1.0);
-}
-)";
-
 struct CellKey
 {
     int x;
@@ -227,20 +199,20 @@ void Renderer::initialize()
     }
 
     pick_point_shader_program_ = std::make_unique<ShaderProgram>();
-    if (!pick_point_shader_program_->createFromSource(kPickPointVertexShader, kPickPointFragmentShader))
+    if (!pick_point_shader_program_->createFromFiles("../src/Shader/pick.vert", "../src/Shader/pick.frag"))
     {
         qWarning() << "Failed to create pick point shader program";
     }
 
-    pick_point_vao_.create();
-    pick_point_vao_.bind();
-    pick_point_vbo_.create();
-    pick_point_vbo_.bind();
-    const float init_pos[3] = {0.0f, 0.0f, 0.0f};
-    pick_point_vbo_.allocate(init_pos, static_cast<int>(sizeof(init_pos)));
-    glEnableVertexAttribArray(0);
-    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
-    pick_point_vao_.release();
+    // pick_point_vao_.create();
+    // pick_point_vao_.bind();
+    // pick_point_vbo_.create();
+    // pick_point_vbo_.bind();
+    // const float init_pos[3] = {0.0f, 0.0f, 0.0f};
+    // pick_point_vbo_.allocate(init_pos, static_cast<int>(sizeof(init_pos)));
+    // glEnableVertexAttribArray(0);
+    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    // pick_point_vao_.release();
 
     seed_sphere_vao_.create();
     seed_sphere_vao_.bind();
@@ -270,35 +242,27 @@ void Renderer::render(const Camera& camera)
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
     
-    // 根据模式选择渲染路径：
-    // BASIC: 网格渲染；ARROW: 仅箭头；STREAMLINE: 可叠加网格与流线。
-    if (mode_ == Mode::BASIC)
-    {
-        if (show_mesh_)
-        {
-            renderBasic(camera);
-        }
-    }
-    else if (mode_ == Mode::ARROW)
+    if(mode_ == Mode::ARROW)
     {
         renderArrows(camera);
     }
-    else if (mode_ == Mode::STREAMLINE)
+    else
     {
         if (show_mesh_)
         {
             renderBasic(camera);
         }
-        if (show_streamline_)
+        if (show_streamline_) //TODO: 流线生成完成
         {
             renderStreamlines(camera);
         }
     }
+    
 
-    if (has_picked_point_)
-    {
-        renderPickedPoint(camera);
-    }
+    // if (has_picked_point_)
+    // {
+    //     renderPickedPoint(camera);
+    // }
 
     if (show_seed_sphere_)
     {
