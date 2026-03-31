@@ -295,8 +295,8 @@ namespace Streamline
             // 基于基准步长的简易自适应控制参数
             const float min_step = std::max(abs_dt * 0.125f, 1e-5f);
             const float max_step = std::max(abs_dt * 4.0f, min_step);
-            const float error_tolerance = std::max(abs_dt * 0.05f, 1e-5f);
-            constexpr int max_retry = 8;
+            const float error_tolerance = std::max(abs_dt * 0.1f, 1e-5f);
+            constexpr int max_retry = 4;
 
             for (int iter = 0; iter < params.max_iterations; ++iter)
             {
@@ -329,20 +329,20 @@ namespace Streamline
                 bool accepted = false;
                 QVector3D next_pos;
                 float used_step = step_size;
+                float point_magnitude = velocity_magnitude;
+                QVector3D cached_full_step;
+                bool cached_full_step_valid = false;
 
-                // 使用 step-doubling 估计局部误差，自动缩放步长
-                for (int retry = 0; retry < max_retry; ++retry)
+                // 快路径：先尝试一次标准 RK4；仅在局部流向/速度变化较大时再进入 step-doubling。
                 {
                     const float signed_step = dt_sign * used_step;
-                    const QVector3D full_step =
-                        rk4Step(current_pos, signed_step, vector_field, mesh_vertices, params);
-                    const QVector3D half_step =
-                        rk4Step(current_pos, signed_step * 0.5f, vector_field, mesh_vertices,
-                                params);
+                    const QVector3D full_step = rk4Step(current_pos, signed_step, vector_field,
+                                                        mesh_vertices, params, &velocity);
 
-                    if (!isWithinBounds(full_step) || !isWithinBounds(half_step))
+                    if (!isWithinBounds(full_step))
                     {
                         used_step *= 0.5f;
+                        step_size = std::max(used_step, min_step);
                         if (used_step < min_step)
                         {
                             break;
@@ -350,43 +350,110 @@ namespace Streamline
                         continue;
                     }
 
-                    const QVector3D two_half_step =
-                        rk4Step(half_step, signed_step * 0.5f, vector_field, mesh_vertices,
-                                params);
-                    if (!isWithinBounds(two_half_step))
+                    cached_full_step = full_step;
+                    cached_full_step_valid = true;
+
+                    const QVector3D next_velocity_est =
+                        interpolateVector(full_step, vector_field, mesh_vertices);
+                    const float next_velocity_magnitude = next_velocity_est.length();
+
+                    constexpr float kSpeedEps = 1e-8f;
+                    float cos_dir = 1.0f;
+                    float speed_ratio = 1.0f;
+                    if (velocity_magnitude > kSpeedEps && next_velocity_magnitude > kSpeedEps)
                     {
-                        used_step *= 0.5f;
-                        if (used_step < min_step)
+                        cos_dir = QVector3D::dotProduct(velocity, next_velocity_est) /
+                                  (velocity_magnitude * next_velocity_magnitude + 1e-12f);
+                        speed_ratio = next_velocity_magnitude / (velocity_magnitude + 1e-12f);
+                    }
+
+                    const bool need_refine =
+                        (cos_dir < 0.92f) || (speed_ratio > 1.4f) || (speed_ratio < 0.7f);
+
+                    if (!need_refine)
+                    {
+                        next_pos = full_step;
+                        point_magnitude = next_velocity_magnitude;
+                        accepted = true;
+                        step_size = std::min(used_step * 1.2f, max_step);
+                    }
+                }
+
+                // 回退路径：在局部变化较大时，使用 step-doubling 估计误差并缩放步长
+                if (!accepted)
+                {
+                    for (int retry = 0; retry < max_retry; ++retry)
+                    {
+                        const float signed_step = dt_sign * used_step;
+                        QVector3D full_step;
+                        if (retry == 0 && cached_full_step_valid &&
+                            std::abs(used_step - step_size) <= 1e-12f)
                         {
-                            break;
+                            full_step = cached_full_step;
                         }
-                        continue;
-                    }
+                        else
+                        {
+                            full_step = rk4Step(current_pos, signed_step, vector_field,
+                                               mesh_vertices, params, &velocity);
+                        }
+                        const QVector3D half_step =
+                            rk4Step(current_pos, signed_step * 0.5f, vector_field, mesh_vertices,
+                                    params, &velocity);
 
-                    const float local_error = (two_half_step - full_step).length();
-                    if (local_error > error_tolerance && used_step > min_step)
-                    {
-                        used_step = std::max(used_step * 0.5f, min_step);
-                        continue;
-                    }
+                        if (!isWithinBounds(full_step) || !isWithinBounds(half_step))
+                        {
+                            used_step *= 0.5f;
+                            if (used_step < min_step)
+                            {
+                                break;
+                            }
+                            continue;
+                        }
 
-                    next_pos = two_half_step;
-                    accepted = true;
+                        const QVector3D two_half_step =
+                            rk4Step(half_step, signed_step * 0.5f, vector_field, mesh_vertices,
+                                    params);
+                        if (!isWithinBounds(two_half_step))
+                        {
+                            used_step *= 0.5f;
+                            if (used_step < min_step)
+                            {
+                                break;
+                            }
+                            continue;
+                        }
 
-                    if (local_error < error_tolerance * 0.25f)
-                    {
-                        step_size = std::min(used_step * 1.5f, max_step);
+                        const float local_error = (two_half_step - full_step).length();
+                        if (local_error > error_tolerance && used_step > min_step)
+                        {
+                            used_step = std::max(used_step * 0.5f, min_step);
+                            continue;
+                        }
+
+                        next_pos = two_half_step;
+                        accepted = true;
+                        point_magnitude = velocity_magnitude;
+
+                        if (local_error < error_tolerance * 0.25f)
+                        {
+                            step_size = std::min(used_step * 1.5f, max_step);
+                        }
+                        else
+                        {
+                            step_size = used_step;
+                        }
+                        break;
                     }
-                    else
-                    {
-                        step_size = used_step;
-                    }
-                    break;
                 }
 
                 if (!accepted)
                 {
-                    break;
+                    step_size = std::max(min_step, used_step * 0.5f);
+                    if (step_size <= min_step)
+                    {
+                        break;
+                    }
+                    continue;
                 }
 
                 if (!isWithinBounds(next_pos))
@@ -408,10 +475,8 @@ namespace Streamline
                 elapsed_time += used_step;
 
                 // 保存新点
-                const float next_magnitude =
-                    interpolateVector(next_pos, vector_field, mesh_vertices).length();
                 StreamlinePoint new_point{next_pos.x(), next_pos.y(), next_pos.z(),
-                                          next_magnitude};
+                                          point_magnitude};
                 out_points.push_back(new_point);
 
                 current_pos = next_pos;
@@ -451,7 +516,8 @@ namespace Streamline
     QVector3D StreamlineGenerator::rk4Step(const QVector3D& current_pos, float dt,
                                            const Field* vector_field,
                                            const std::vector<float>& mesh_vertices,
-                                           const StreamlineParams& params)
+                                           const StreamlineParams& params,
+                                           const QVector3D* precomputed_velocity)
     {
         const auto sampleVelocity = [&](const QVector3D& pos) {
             const QVector3D v = interpolateVector(pos, vector_field, mesh_vertices);
@@ -468,7 +534,31 @@ namespace Streamline
             return v / mag;
         };
 
-        const QVector3D k1 = sampleVelocity(current_pos);
+        QVector3D k1;
+        if (precomputed_velocity)
+        {
+            if (params.use_physical_velocity)
+            {
+                k1 = *precomputed_velocity;
+            }
+            else
+            {
+                const float mag = precomputed_velocity->length();
+                if (mag <= std::numeric_limits<float>::epsilon())
+                {
+                    k1 = QVector3D(0.0f, 0.0f, 0.0f);
+                }
+                else
+                {
+                    k1 = (*precomputed_velocity) / mag;
+                }
+            }
+        }
+        else
+        {
+            k1 = sampleVelocity(current_pos);
+        }
+
         if (k1.lengthSquared() <= 1e-12f)
         {
             return current_pos;
@@ -579,21 +669,13 @@ namespace Streamline
         }
 
         const size_t point_count = mesh_vertices.size() / 3;
-        const int kCandidateVertices = std::min<int>(24, static_cast<int>(point_count));
+        const int kCandidateVertices = std::min<int>(12, static_cast<int>(point_count));
         if (kCandidateVertices <= 0)
         {
             return false;
         }
 
-        const float pos_arr[3] = {pos.x(), pos.y(), pos.z()};
-        auto nearest = octree_.findNearestK(pos_arr, kCandidateVertices);
-        if (nearest.empty())
-        {
-            return false;
-        }
-
         // 热路径优化：使用线程局部去重表，避免每次 sort+unique 和频繁分配。
-        thread_local std::vector<size_t> candidate_cells;
         thread_local std::vector<uint32_t> visited_stamp;
         thread_local uint32_t stamp = 1;
         thread_local size_t last_hit_cell = std::numeric_limits<size_t>::max();
@@ -608,37 +690,6 @@ namespace Streamline
         {
             std::fill(visited_stamp.begin(), visited_stamp.end(), 0u);
             stamp = 1u;
-        }
-
-        candidate_cells.clear();
-        candidate_cells.reserve(256);
-        for (const auto& [sq_dist, vid] : nearest)
-        {
-            (void)sq_dist;
-            if (vid < 0 || static_cast<size_t>(vid) >= vertex_to_supported_cells_.size())
-            {
-                continue;
-            }
-
-            const auto& cells = vertex_to_supported_cells_[static_cast<size_t>(vid)];
-            for (size_t cid : cells)
-            {
-                if (cid >= visited_stamp.size())
-                {
-                    continue;
-                }
-                if (visited_stamp[cid] == stamp)
-                {
-                    continue;
-                }
-                visited_stamp[cid] = stamp;
-                candidate_cells.push_back(cid);
-            }
-        }
-
-        if (candidate_cells.empty())
-        {
-            return false;
         }
 
         constexpr std::array<std::array<int, 4>, 5> kHexTets = {
@@ -756,8 +807,8 @@ namespace Streamline
             return false;
         };
 
-        if (last_hit_cell < visited_stamp.size() &&
-            visited_stamp[last_hit_cell] == stamp)
+        // 先尝试上一次命中的单元，命中时可直接返回，避免本次 octree 查询与候选构造。
+        if (last_hit_cell < mesh_part_->cells_.size())
         {
             if (tryCell(last_hit_cell))
             {
@@ -765,15 +816,41 @@ namespace Streamline
             }
         }
 
-        for (size_t cell_id : candidate_cells)
+        const float pos_arr[3] = {pos.x(), pos.y(), pos.z()};
+        auto nearest = octree_.findNearestK(pos_arr, kCandidateVertices);
+        if (nearest.empty())
         {
-            if (cell_id == last_hit_cell)
+            return false;
+        }
+
+        for (const auto& [sq_dist, vid] : nearest)
+        {
+            (void)sq_dist;
+            if (vid < 0 || static_cast<size_t>(vid) >= vertex_to_supported_cells_.size())
             {
                 continue;
             }
-            if (tryCell(cell_id))
+
+            const auto& cells = vertex_to_supported_cells_[static_cast<size_t>(vid)];
+            for (size_t cid : cells)
             {
-                return true;
+                if (cid >= visited_stamp.size())
+                {
+                    continue;
+                }
+                if (visited_stamp[cid] == stamp)
+                {
+                    continue;
+                }
+                visited_stamp[cid] = stamp;
+                if (cid == last_hit_cell)
+                {
+                    continue;
+                }
+                if (tryCell(cid))
+                {
+                    return true;
+                }
             }
         }
 

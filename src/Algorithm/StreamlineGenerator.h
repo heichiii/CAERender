@@ -86,7 +86,8 @@ namespace Streamline
          */
         QVector3D rk4Step(const QVector3D& current_pos, float dt, const Field* vector_field,
                           const std::vector<float>& mesh_vertices,
-                          const StreamlineParams& params);
+                          const StreamlineParams& params,
+                          const QVector3D* precomputed_velocity = nullptr);
 
         /**
          * @brief 在指定位置进行矢量插值（当前为 IDW）

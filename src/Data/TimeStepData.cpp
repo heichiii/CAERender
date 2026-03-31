@@ -522,10 +522,10 @@ void TimeStepData::updateStreamlineBufferFromSphere(const QVector3D& center, flo
                                         .max_length = 1800.0f,
                                         .max_propagation_time = 0.0f,
                                         .min_velocity = 0.005f,
-                                        .max_iterations = 16000,
+                                        .max_iterations = 32000,
                                         .num_threads = 16,
                                         .use_physical_velocity = true,
-                                        .enable_smoothing = false,
+                                        .enable_smoothing = true,
                                         .smooth_iterations = 1};
 
     auto streamlines =
