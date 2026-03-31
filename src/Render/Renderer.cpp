@@ -474,6 +474,8 @@ void Renderer::updateStreamlineBuffers()
     if (!gpu_data_ || gpu_data_->streamline_vertices_.empty())
     {
         qWarning() << "No streamline data available";
+        streamline_first_array_.clear();
+        streamline_count_array_.clear();
         return;
     }
 
@@ -483,41 +485,63 @@ void Renderer::updateStreamlineBuffers()
     qDebug() << "Streamline magnitude range: [" << gpu_data_->streamline_magnitude_min_
              << ", " << gpu_data_->streamline_magnitude_max_ << "]";
 
-    // 销毁旧缓冲
-    if (streamline_vao_.isCreated())
+    // 首次创建 VAO/VBO；后续复用并按需扩容，避免频繁 destroy/create。
+    if (!streamline_vao_.isCreated())
     {
-        streamline_vao_.destroy();
+        streamline_vao_.create();
     }
-    if (streamline_pos_buffer_.isCreated())
+    if (!streamline_pos_buffer_.isCreated())
     {
-        streamline_pos_buffer_.destroy();
+        streamline_pos_buffer_.create();
     }
-    if (streamline_mag_buffer_.isCreated())
+    if (!streamline_mag_buffer_.isCreated())
     {
-        streamline_mag_buffer_.destroy();
+        streamline_mag_buffer_.create();
     }
 
-    // 创建顶点数组对象
-    streamline_vao_.create();
     streamline_vao_.bind();
 
-    // 位置缓冲
-    streamline_pos_buffer_.create();
+    const size_t pos_size_bytes = gpu_data_->streamline_vertices_.size() * sizeof(float);
     streamline_pos_buffer_.bind();
-    streamline_pos_buffer_.allocate(gpu_data_->streamline_vertices_.data(),
-                                    static_cast<int>(gpu_data_->streamline_vertices_.size() * sizeof(float)));
+    if (pos_size_bytes > streamline_pos_capacity_bytes_)
+    {
+        streamline_pos_buffer_.allocate(nullptr, static_cast<int>(pos_size_bytes));
+        streamline_pos_capacity_bytes_ = pos_size_bytes;
+    }
+    if (pos_size_bytes > 0)
+    {
+        streamline_pos_buffer_.write(0, gpu_data_->streamline_vertices_.data(),
+                                     static_cast<int>(pos_size_bytes));
+    }
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
-    // 幅值缓冲
-    streamline_mag_buffer_.create();
+    const size_t mag_size_bytes = gpu_data_->streamline_magnitudes_.size() * sizeof(float);
     streamline_mag_buffer_.bind();
-    streamline_mag_buffer_.allocate(gpu_data_->streamline_magnitudes_.data(),
-                                    static_cast<int>(gpu_data_->streamline_magnitudes_.size() * sizeof(float)));
+    if (mag_size_bytes > streamline_mag_capacity_bytes_)
+    {
+        streamline_mag_buffer_.allocate(nullptr, static_cast<int>(mag_size_bytes));
+        streamline_mag_capacity_bytes_ = mag_size_bytes;
+    }
+    if (mag_size_bytes > 0)
+    {
+        streamline_mag_buffer_.write(0, gpu_data_->streamline_magnitudes_.data(),
+                                     static_cast<int>(mag_size_bytes));
+    }
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), nullptr);
 
     streamline_vao_.release();
+
+    // 批绘制参数在数据更新时构建，避免每帧分配和填充。
+    const size_t num_streamlines = gpu_data_->streamline_line_counts_.size();
+    streamline_first_array_.resize(num_streamlines);
+    streamline_count_array_.resize(num_streamlines);
+    for (size_t i = 0; i < num_streamlines; ++i)
+    {
+        streamline_first_array_[i] = static_cast<GLint>(gpu_data_->streamline_line_starts_[i]);
+        streamline_count_array_[i] = static_cast<GLsizei>(gpu_data_->streamline_line_counts_[i]);
+    }
 
     qDebug() << "Streamline buffers updated successfully";
 }
@@ -648,9 +672,6 @@ void Renderer::renderStreamlines(const Camera& camera)
     streamline_shader_program_->getProgram()->setUniformValue("u_view", view);
     streamline_shader_program_->getProgram()->setUniformValue("u_projection", projection);
 
-    streamline_shader_program_->getProgram()->setUniformValue("u_light_pos", QVector3D(5.0f, 5.0f, 15.0f));
-    streamline_shader_program_->getProgram()->setUniformValue("u_view_pos", QVector3D(0.0f, 0.0f, 10.0f));
-
     streamline_shader_program_->getProgram()->setUniformValue("u_color_scheme", static_cast<int>(color_scheme_));
     streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_min", gpu_data_->streamline_magnitude_min_);
     streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_max", gpu_data_->streamline_magnitude_max_);
@@ -658,35 +679,17 @@ void Renderer::renderStreamlines(const Camera& camera)
     // 绑定VAO
     streamline_vao_.bind();
 
-    // 绑定线条宽度
-    glLineWidth(2.0f);
-    glEnable(GL_LINE_SMOOTH);
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    // 线平滑在大规模折线场景下开销较高，默认关闭以保证帧率。
+    glLineWidth(1.0f);
 
     // 使用 glMultiDrawArrays 批量绘制所有流线（性能更优）
-    size_t num_streamlines = gpu_data_->streamline_line_counts_.size();
+    const size_t num_streamlines = streamline_count_array_.size();
     if (num_streamlines > 0)
     {
-        // 转换数据类型以适应 glMultiDrawArrays 的参数要求
-        std::vector<GLint> first_array;
-        std::vector<GLsizei> count_array;
-
-        first_array.reserve(num_streamlines);
-        count_array.reserve(num_streamlines);
-
-        for (size_t i = 0; i < num_streamlines; ++i)
-        {
-            first_array.push_back(static_cast<GLint>(gpu_data_->streamline_line_starts_[i]));
-            count_array.push_back(static_cast<GLsizei>(gpu_data_->streamline_line_counts_[i]));
-        }
-
         // 单次调用绘制所有流线（相比循环调用要快）
-        glMultiDrawArrays(GL_LINE_STRIP, first_array.data(), count_array.data(), 
+        glMultiDrawArrays(GL_LINE_STRIP, streamline_first_array_.data(), streamline_count_array_.data(),
                          static_cast<GLsizei>(num_streamlines));
     }
-
-    glDisable(GL_LINE_SMOOTH);
-    glLineWidth(1.0f);
 
     streamline_vao_.release();
     streamline_shader_program_->release();

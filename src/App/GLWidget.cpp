@@ -592,7 +592,10 @@ void GLWidget::regenerateStreamlinesFromSeedSphere()
         same_count && same_field && same_mesh)
     {
         makeCurrent();
-        renderer_.setMode(Mode::STREAMLINE);
+        if (renderer_.getMode() != Mode::STREAMLINE)
+        {
+            renderer_.setMode(Mode::STREAMLINE);
+        }
         update();
         return;
     }

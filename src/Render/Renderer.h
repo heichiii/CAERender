@@ -7,6 +7,7 @@
 #include <QOpenGLBuffer>
 #include <QOpenGLFunctions_4_5_Core>
 #include <QOpenGLVertexArrayObject>
+#include <cstdint>
 #include <vector>
 
 enum class Mode
@@ -133,6 +134,10 @@ private:
     QOpenGLBuffer streamline_mag_buffer_;
     QOpenGLBuffer streamline_ebo_;
     std::unique_ptr<ShaderProgram> streamline_shader_program_;
+    std::vector<GLint> streamline_first_array_;
+    std::vector<GLsizei> streamline_count_array_;
+    size_t streamline_pos_capacity_bytes_ = 0;
+    size_t streamline_mag_capacity_bytes_ = 0;
 
     // 拾取点高亮
     QOpenGLVertexArrayObject pick_point_vao_;
