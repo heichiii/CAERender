@@ -25,8 +25,18 @@ void RenderOptionsWidget::setupUI()
     auto* lod_group = new QGroupBox("LOD优化", this);
     auto* lod_layout = new QVBoxLayout(lod_group);
     lod_enable_checkbox_ = new QCheckBox("启用LOD", lod_group);
-    lod_enable_checkbox_->setChecked(true);
+    lod_enable_checkbox_->setChecked(false);
     lod_layout->addWidget(lod_enable_checkbox_);
+
+    auto* lod_level_label = new QLabel("交互细节:", lod_group);
+    lod_layout->addWidget(lod_level_label);
+    lod_level_combo_ = new QComboBox(lod_group);
+    lod_level_combo_->addItem("中细节");
+    lod_level_combo_->addItem("低细节");
+    lod_level_combo_->setCurrentIndex(0);
+    lod_level_combo_->setEnabled(false);
+    lod_layout->addWidget(lod_level_combo_);
+    connect(lod_enable_checkbox_, &QCheckBox::toggled, lod_level_combo_, &QComboBox::setEnabled);
     render_layout->addWidget(lod_group);
 
     auto* field_group = new QGroupBox("场量", this);
@@ -77,6 +87,11 @@ QComboBox* RenderOptionsWidget::meshRenderModeCombo() const
 QCheckBox* RenderOptionsWidget::lodCheckBox() const
 {
     return lod_enable_checkbox_;
+}
+
+QComboBox* RenderOptionsWidget::lodLevelCombo() const
+{
+    return lod_level_combo_;
 }
 
 QComboBox* RenderOptionsWidget::colorSchemeCombo() const

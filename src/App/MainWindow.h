@@ -56,7 +56,9 @@ private slots:
     void onFpsUpdated(float fps);
     void onLodLevelChanged(LODLevel level);
     void onLodCheckBoxToggled(bool checked);
+    void onLodLevelComboChanged(int index);
     void onSeedSphereCenterChanged(const QVector3D& center, bool valid);
+    void onStreamlineLodEnabledChanged(bool checked);
 
     // Streamline options signals
     void onStreamlineVectorFieldChanged(const QString& field_name);

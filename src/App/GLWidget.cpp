@@ -384,10 +384,9 @@ void GLWidget::mousePressEvent(QMouseEvent* event)
 
 void GLWidget::mouseMoveEvent(QMouseEvent* event)
 {
-    // 设置操作标志
-    is_interacting_ = true;
     QPoint delta = event->pos() - last_mouse_pos_;
     last_mouse_pos_ = event->pos();
+    bool camera_motion_for_lod = false;
 
     if (is_dragging_seed_sphere_)
     {
@@ -408,14 +407,21 @@ void GLWidget::mouseMoveEvent(QMouseEvent* event)
     {
         // 使用四元数旋转
         camera_.applyRotationDelta(static_cast<float>(delta.x()), static_cast<float>(delta.y()));
+        camera_motion_for_lod = true;
     }
     else if (is_panning_)
     {
         camera_.pan(delta.x() * 0.005f, delta.y() * 0.005f);
+        camera_motion_for_lod = true;
     }
     else if (is_zooming_)
     {
         camera_.zoom(delta.y() * 0.1f);
+    }
+
+    if (camera_motion_for_lod)
+    {
+        is_lod_interacting_ = true;
     }
 
     update();
@@ -437,9 +443,7 @@ void GLWidget::mouseReleaseEvent(QMouseEvent* event)
     {
         is_zooming_ = false;
     }
-
-
-    is_interacting_ = false;
+    is_lod_interacting_ = false;
     renderer_.setLODLevel(LODLevel::HIGH);
     emit lodLevelChanged(LODLevel::HIGH);
     update();
@@ -632,9 +636,9 @@ void GLWidget::updateLOD()
     
     // 确定目标 LOD 级别
     LODLevel target_level = LODLevel::HIGH;
-    if (is_interacting_)
+    if (is_lod_interacting_)
     {
-        target_level = LODLevel::MEDIUM;  // 操作时用中细节
+        target_level = interaction_lod_level_;
     }
     
     // 防抖机制：延迟 2 帧才切换回 HIGH（避免频繁切换）
@@ -675,6 +679,12 @@ void GLWidget::setLODEnabled(bool enabled)
         emit lodLevelChanged(LODLevel::HIGH);
         update();
     }
+}
+
+void GLWidget::setInteractionLODLevel(LODLevel level)
+{
+    interaction_lod_level_ = level;
+    update();
 }
 
 void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)

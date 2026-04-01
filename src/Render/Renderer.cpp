@@ -11,6 +11,9 @@
 
 namespace
 {
+constexpr float kMediumDetailRatio = 0.75f;
+constexpr float kLowDetailRatio = 0.55f;
+
 struct CellKey
 {
     int x;
@@ -638,8 +641,22 @@ void Renderer::renderArrows(const Camera& camera)
     arrow_shader_program_->getProgram()->setUniformValue("u_vector_magnitude_max",
                                                          gpu_data_->vector_magnitude_max_);
 
+    GLsizei draw_count = static_cast<GLsizei>(num_vectors);
+    if (lod_level_ == LODLevel::MEDIUM)
+    {
+        draw_count = std::max<GLsizei>(1, static_cast<GLsizei>(
+                                           std::ceil(static_cast<float>(draw_count) *
+                                                     kMediumDetailRatio)));
+    }
+    else if (lod_level_ == LODLevel::LOW)
+    {
+        draw_count = std::max<GLsizei>(1, static_cast<GLsizei>(
+                                           std::ceil(static_cast<float>(draw_count) *
+                                                     kLowDetailRatio)));
+    }
+
     arrow_vao_.bind();
-    glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(num_vectors));
+    glDrawArrays(GL_POINTS, 0, draw_count);
     arrow_vao_.release();
 
     arrow_shader_program_->release();
@@ -683,7 +700,20 @@ void Renderer::renderStreamlines(const Camera& camera)
     glLineWidth(1.0f);
 
     // 使用 glMultiDrawArrays 批量绘制所有流线（性能更优）
-    const size_t num_streamlines = streamline_count_array_.size();
+    size_t num_streamlines = streamline_count_array_.size();
+    if (lod_level_ == LODLevel::MEDIUM && num_streamlines > 1)
+    {
+        num_streamlines = std::max<size_t>(1, static_cast<size_t>(
+                                               std::ceil(static_cast<float>(num_streamlines) *
+                                                         kMediumDetailRatio)));
+    }
+    else if (lod_level_ == LODLevel::LOW && num_streamlines > 1)
+    {
+        num_streamlines = std::max<size_t>(1, static_cast<size_t>(
+                                               std::ceil(static_cast<float>(num_streamlines) *
+                                                         kLowDetailRatio)));
+    }
+
     if (num_streamlines > 0)
     {
         // 单次调用绘制所有流线（相比循环调用要快）
@@ -719,8 +749,8 @@ void Renderer::rebuildLODIndices()
     }
 
     lod_high_indices_ = gpu_data_->indices_;
-    lod_medium_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 36);
-    lod_low_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 20);
+    lod_medium_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 52);
+    lod_low_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 40);
 
     if (lod_medium_indices_.size() > lod_high_indices_.size())
     {

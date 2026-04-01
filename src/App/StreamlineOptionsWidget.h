@@ -33,6 +33,7 @@ public:
 signals:
     void streamlineVectorFieldChanged(const QString& field_name);
     void streamlineRenderModeChanged(int mode);  // 0: solid, 1: point cloud
+    void streamlineLodEnabledChanged(bool enabled);
     void streamlineLodLevelChanged(LODLevel level);
     void seedSphereRadiusChanged(double radius);
     void seedSphereCountChanged(int count);

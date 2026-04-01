@@ -47,6 +47,9 @@ void MainWindow::setupUI()
     // 连接LOD复选框
     connect(render_options_widget_->lodCheckBox(), &QCheckBox::toggled, this,
             &MainWindow::onLodCheckBoxToggled);
+        connect(render_options_widget_->lodLevelCombo(),
+            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
+            &MainWindow::onLodLevelComboChanged);
     // 连接配色方案
     connect(render_options_widget_->colorSchemeCombo(),
             QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -70,6 +73,8 @@ void MainWindow::setupUI()
             this, &MainWindow::onStreamlineVectorFieldChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineRenderModeChanged, this,
             &MainWindow::onStreamlineRenderModeChanged);
+        connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineLodEnabledChanged,
+            this, &MainWindow::onStreamlineLodEnabledChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineLodLevelChanged, this,
             &MainWindow::onStreamlineLodLevelChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::seedSphereRadiusChanged, this,
@@ -436,10 +441,10 @@ void MainWindow::onLodLevelChanged(LODLevel level)
             levelText = "HIGH (100%)";
             break;
         case LODLevel::MEDIUM:
-            levelText = "MEDIUM (50%)";
+            levelText = "MEDIUM (75%)";
             break;
         case LODLevel::LOW:
-            levelText = "LOW (25%)";
+            levelText = "LOW (55%)";
             break;
         default:
             levelText = "UNKNOWN";
@@ -451,6 +456,12 @@ void MainWindow::onLodLevelChanged(LODLevel level)
 void MainWindow::onLodCheckBoxToggled(bool checked)
 {
     gl_widget_->setLODEnabled(checked);
+}
+
+void MainWindow::onLodLevelComboChanged(int index)
+{
+    const LODLevel level = (index == 0) ? LODLevel::MEDIUM : LODLevel::LOW;
+    gl_widget_->setInteractionLODLevel(level);
 }
 
 void MainWindow::onSeedSphereRadiusChanged(double value)
@@ -499,10 +510,14 @@ void MainWindow::onStreamlineRenderModeChanged(int mode)
     // 这可以在未来用于切换流线的渲染模式
 }
 
+void MainWindow::onStreamlineLodEnabledChanged(bool checked)
+{
+    gl_widget_->setLODEnabled(checked);
+}
+
 void MainWindow::onStreamlineLodLevelChanged(LODLevel level)
 {
-    // 流线LOD级别变化处理
-    // TODO: 实现流线的LOD优化
+    gl_widget_->setInteractionLODLevel(level);
 }
 
 void MainWindow::onGenerateStreamlinesRequested()

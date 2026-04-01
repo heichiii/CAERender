@@ -44,9 +44,9 @@ enum class VectorRenderMode
 // LOD级别枚举
 enum class LODLevel
 {
-    HIGH,   // 高细节 - 距离 < 15
-    MEDIUM, // 中细节 - 距离 15-50
-    LOW     // 低细节 - 距离 > 50
+    HIGH,   // 高细节
+    MEDIUM, // 中细节
+    LOW     // 低细节
 };
 
 class Renderer : public QOpenGLFunctions_4_5_Core

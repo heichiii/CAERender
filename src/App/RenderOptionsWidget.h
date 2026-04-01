@@ -15,6 +15,7 @@ public:
     QComboBox* fieldCombo() const;
     QComboBox* meshRenderModeCombo() const;
     QCheckBox* lodCheckBox() const;
+    QComboBox* lodLevelCombo() const;
     QComboBox* colorSchemeCombo() const;
     QComboBox* vectorRenderModeCombo() const;
 
@@ -32,6 +33,7 @@ private:
 
     QComboBox* mesh_render_mode_combo_ = nullptr;
     QCheckBox* lod_enable_checkbox_ = nullptr;
+    QComboBox* lod_level_combo_ = nullptr;
     QComboBox* field_combo_ = nullptr;
 
     QLabel* color_scheme_label_ = nullptr;

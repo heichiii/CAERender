@@ -37,15 +37,16 @@ void StreamlineOptionsWidget::setupUI()
     auto* lod_layout = new QVBoxLayout();
 
     streamline_lod_checkbox_ = new QCheckBox("启用LOD");
-    streamline_lod_checkbox_->setChecked(true);
+    streamline_lod_checkbox_->setChecked(false);
     lod_layout->addWidget(streamline_lod_checkbox_);
 
     auto* lod_level_layout = new QHBoxLayout();
     lod_level_layout->addWidget(new QLabel("LOD级别:"));
     streamline_lod_combo_ = new QComboBox();
-    streamline_lod_combo_->addItem("高细节");
     streamline_lod_combo_->addItem("中细节");
     streamline_lod_combo_->addItem("低细节");
+    streamline_lod_combo_->setCurrentIndex(0);
+    streamline_lod_combo_->setEnabled(false);
     lod_level_layout->addWidget(streamline_lod_combo_);
     lod_layout->addLayout(lod_level_layout);
 
@@ -129,6 +130,11 @@ void StreamlineOptionsWidget::setupUI()
             &StreamlineOptionsWidget::onRenderModeChanged);
     connect(streamline_lod_checkbox_, &QCheckBox::toggled, this, [this](bool checked) {
         streamline_lod_combo_->setEnabled(checked);
+        emit streamlineLodEnabledChanged(checked);
+        if (checked)
+        {
+            onLodLevelChanged(streamline_lod_combo_->currentIndex());
+        }
     });
     connect(streamline_lod_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &StreamlineOptionsWidget::onLodLevelChanged);
@@ -203,7 +209,8 @@ void StreamlineOptionsWidget::onLodLevelChanged(int index)
 {
     if (streamline_lod_checkbox_->isChecked())
     {
-        emit streamlineLodLevelChanged(static_cast<LODLevel>(index));
+        const LODLevel level = (index == 0) ? LODLevel::MEDIUM : LODLevel::LOW;
+        emit streamlineLodLevelChanged(level);
     }
 }
 
