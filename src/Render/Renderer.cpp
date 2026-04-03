@@ -666,7 +666,7 @@ void Renderer::renderStreamlines(const Camera& camera)
 {
     if (!gpu_data_ || gpu_data_->streamline_vertices_.empty() || gpu_data_->streamline_line_counts_.empty())
     {
-        qWarning() << "No streamline data to render";
+        // qWarning() << "No streamline data to render";
         return;
     }
 

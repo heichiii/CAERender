@@ -1,5 +1,6 @@
 #include "GLWidget.h"
 #include "Loader/LoaderFactory.h"
+#include "TestTool/Profiler.h"
 #include <QDebug>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
@@ -55,6 +56,7 @@ GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent)
 }
 void GLWidget::loadFile(const std::string& filename)
 {
+    PROFILE_CODE
     auto loader = LoaderFactory::createLoader(filename);
     if (!loader)
     {

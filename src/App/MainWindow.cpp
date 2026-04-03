@@ -175,7 +175,7 @@ void MainWindow::test_openFile()
 }
 void MainWindow::openFile()
 {
-    PROFILE_CODE
+    
 #if DEBUG_MODE
     // QString filename = "E:/data/CAE/VTK/motorBike_500.vtk";
     QString filename = "E:\\data\\CAE\\VTK_Submarine2/Submarine_case_4.vtk";
