@@ -1,0 +1,147 @@
+<mxfile host="Electron" agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/29.6.1 Chrome/142.0.7444.265 Electron/39.8.0 Safari/537.36" version="29.6.1">
+  <diagram name="第 1 页" id="aauWVbMjA7qiaz7_YoCD">
+    <mxGraphModel dx="2426" dy="1444" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="827" pageHeight="1169" math="0" shadow="0">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+        <mxCell id="gZheWzyXdmHUojgXEBg9-49" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-1" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" value="">
+          <mxGeometry relative="1" as="geometry">
+            <mxPoint x="380" y="230" as="targetPoint" />
+          </mxGeometry>
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-1" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="1. 更新整个网格的包围盒，建树" vertex="1">
+          <mxGeometry height="60" width="120" x="180" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-5" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-2" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-4" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-2" parent="1" style="rounded=0;whiteSpace=wrap;html=1;" value="2. 计算avg_nn得到support radius" vertex="1">
+          <mxGeometry height="60" width="120" x="380" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-7" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-4" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-6" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-4" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="&lt;font style=&quot;font-size: 9px;&quot;&gt;3. 更新所有vertex_to_supported_cell&amp;nbsp;&lt;/font&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="580" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-9" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-6" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-8" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-6" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="4. 更新每个support cell的包围盒" vertex="1">
+          <mxGeometry height="60" width="120" x="780" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-11" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-10" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-25" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-8" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-24" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-8" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="5. 并行&lt;span style=&quot;color: rgb(210, 168, 255); background-color: rgb(13, 17, 23); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; white-space: pre;&quot;&gt;generateSingleStreamline（）&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="230" x="980" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-13" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-12" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-27" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-10" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-26" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-10" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="1. 负/正时间积分" vertex="1">
+          <mxGeometry height="60" width="120" x="1035" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-17" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-12" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-16" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-12" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="1. 确认最大/小step和error_tolerance" vertex="1">
+          <mxGeometry height="60" width="120" x="1035" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-19" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-16" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-18" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-16" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="2. 迭代积分" vertex="1">
+          <mxGeometry height="60" width="120" x="1235" y="480" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-21" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-20" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-41" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-18" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-40" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-18" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="1.&amp;nbsp;&lt;span style=&quot;color: rgb(210, 168, 255); background-color: rgb(13, 17, 23); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; white-space: pre;&quot;&gt;interpolateVectorh&lt;br/&gt;获取当前点速度&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="1235" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-23" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-20" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-22" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-20" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="2. 判断边界停止（速度过小、长度超限）" vertex="1">
+          <mxGeometry height="60" width="120" x="1435" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-29" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-22" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-28" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-22" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="3.&lt;span style=&quot;color: rgb(210, 168, 255); background-color: rgb(13, 17, 23); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; white-space: pre;&quot;&gt;rk4Step全步长&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;得到下一位置&amp;nbsp;&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="1635" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-24" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="6. 并行&lt;span style=&quot;color: rgb(210, 168, 255); background-color: rgb(13, 17, 23); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; white-space: pre;&quot;&gt;smoothStreamlines&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="1345" y="200" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-26" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="2. 合并" vertex="1">
+          <mxGeometry height="60" width="120" x="1235" y="340" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-31" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-28" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-30" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-28" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="4. 若过界，步长减半进入下一次迭代" vertex="1">
+          <mxGeometry height="60" width="120" x="1835" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-33" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-30" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-32" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-30" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="5. 缓存新位置，&lt;span style=&quot;color: rgb(210, 168, 255); background-color: rgb(13, 17, 23); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; white-space: pre;&quot;&gt;interpolateVector&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;获得新位置的速度&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="2035" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-35" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-32" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-34" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-32" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="6. 根据新旧速度差异判断是否需要细化步长" vertex="1">
+          <mxGeometry height="60" width="120" x="2235" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-37" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-34" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-36" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-34" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="7. 不需要则accept" vertex="1">
+          <mxGeometry height="60" width="120" x="2435" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-39" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-36" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-38" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-36" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="8. 需要：retry次数内减半步长" vertex="1">
+          <mxGeometry height="60" width="120" x="2635" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-38" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="9. 更新线长度，保存新点" vertex="1">
+          <mxGeometry height="60" width="120" x="2835" y="620" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-43" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-42" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-47" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-40" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-46" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-40" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="1.&lt;span style=&quot;color: rgb(210, 168, 255); background-color: rgb(13, 17, 23); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; white-space: pre;&quot;&gt;interpolateVectorInCell&lt;/span&gt;&lt;span style=&quot;background-color: transparent; color: light-dark(rgb(0, 0, 0), rgb(255, 255, 255));&quot;&gt;&amp;nbsp;&lt;br&gt;成功则返回&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="1235" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-45" edge="1" parent="1" source="gZheWzyXdmHUojgXEBg9-42" style="edgeStyle=orthogonalEdgeStyle;rounded=0;orthogonalLoop=1;jettySize=auto;html=1;" target="gZheWzyXdmHUojgXEBg9-44" value="">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-42" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="2. 八叉树查找最近K个点的距离&lt;span style=&quot;color: rgb(210, 168, 255); background-color: rgb(13, 17, 23); font-family: Consolas, &amp;quot;Courier New&amp;quot;, monospace; font-size: 14px; white-space: pre;&quot;&gt;findNearestK&lt;/span&gt;" vertex="1">
+          <mxGeometry height="60" width="120" x="1435" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-44" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="3.IDW插值" vertex="1">
+          <mxGeometry height="60" width="120" x="1635" y="760" as="geometry" />
+        </mxCell>
+        <mxCell id="gZheWzyXdmHUojgXEBg9-46" parent="1" style="whiteSpace=wrap;html=1;rounded=0;" value="" vertex="1">
+          <mxGeometry height="60" width="120" x="1235" y="900" as="geometry" />
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

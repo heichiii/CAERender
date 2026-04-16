@@ -546,10 +546,10 @@ void MainWindow::onGenerateStreamlinesRequested()
     }
 
     // 更新矢量缓冲区，确保GPU数据是最新的
-    case_data->steps_[0].updateVectorBuffer();
+    // case_data->steps_[0].updateVectorBuffer();
 
     // 确保种子球编辑模式已启用
-    gl_widget_->setSeedSphereEditingEnabled(true);
+    // gl_widget_->setSeedSphereEditingEnabled(true);
 
     // 切换到流线渲染模式
     gl_widget_->setRenderMode(Mode::STREAMLINE);

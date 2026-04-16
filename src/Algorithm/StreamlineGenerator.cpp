@@ -103,6 +103,7 @@ namespace Streamline
         if (!bounds_initialized_ || mesh_changed)
         {
             //TODO: 这里可以考虑并行化计算边界
+            // compute mesh bounds
             mesh_min_ =
                 QVector3D(std::numeric_limits<float>::max(), std::numeric_limits<float>::max(),
                           std::numeric_limits<float>::max());
@@ -133,6 +134,7 @@ namespace Streamline
                 diag = 1.0f;
             }
 
+            // compute average nearest neighbor distance
             float avg_nn = 0.0f;
             int nn_count = 0;
             if (num_vertices >= 2)
@@ -172,6 +174,7 @@ namespace Streamline
             cached_mesh_size_ = mesh_vertices.size();
             qDebug() << "Streamline support radius:" << support_radius;
 
+            // 构建单元支持关系（仅当提供了 MeshPart 且单元数据可用时）
             supported_cell_ids_.clear();
             vertex_to_supported_cells_.clear();
             supported_cell_min_.clear();
