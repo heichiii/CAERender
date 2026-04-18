@@ -23,7 +23,10 @@ public:
     explicit GLWidget(QWidget* parent = nullptr);
     ~GLWidget() override= default;
     void loadFile(const std::string& filename);
+    void loadFiles(const std::vector<std::string>& filenames);
     void setMesh(const GPUData* p_gpu_data);
+    void setTimeStep(int index);
+    int getCurrentTimeStepIndex() const { return case_data_.current_step_index_; }
     CaseData* getCaseData()  { return &case_data_; }
     
     // 渲染控制接口

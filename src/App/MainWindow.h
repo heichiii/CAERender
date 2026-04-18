@@ -68,5 +68,6 @@ private slots:
     void onSeedSphereCountChanged(int value);
     void onSeedSphereOffsetChanged(const QVector3D& offset);
     void onGenerateStreamlinesRequested();
+    void onTimeStepChanged(int step);
 
 };

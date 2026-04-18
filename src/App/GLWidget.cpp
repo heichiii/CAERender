@@ -72,9 +72,49 @@ void GLWidget::loadFile(const std::string& filename)
     time_step.generateGPUData();
     // time_step.activateField("POINT-p-SCALAR");
     case_data_.steps_.push_back(std::move(time_step));
+    case_data_.current_step_index_ = 0;
     setMesh(&case_data_.steps_[0].gpu_data_); // 设置网格数据
 
     update(); // 触发重绘
+}
+
+void GLWidget::loadFiles(const std::vector<std::string>& filenames)
+{
+    PROFILE_CODE
+    case_data_.steps_.clear();
+
+    for (size_t i = 0; i < filenames.size(); ++i)
+    {
+        auto loader = LoaderFactory::createLoader(filenames[i]);
+        if (!loader)
+        {
+            qWarning() << "Unsupported file format:" << QString::fromStdString(filenames[i]);
+            continue;
+        }
+
+        TimeStepData time_step;
+        time_step.time_ = static_cast<double>(i); // Or extract from filename if needed
+        time_step.parts_.push_back(loader->load());
+        time_step.generateGPUData();
+        case_data_.steps_.push_back(std::move(time_step));
+    }
+
+    if (!case_data_.steps_.empty())
+    {
+        case_data_.current_step_index_ = 0;
+        setMesh(&case_data_.steps_[0].gpu_data_);
+        update();
+    }
+}
+
+void GLWidget::setTimeStep(int index)
+{
+    if (index >= 0 && index < static_cast<int>(case_data_.steps_.size()))
+    {
+        case_data_.current_step_index_ = index;
+        setMesh(&case_data_.steps_[index].gpu_data_);
+        update();
+    }
 }
 
 void GLWidget::setMesh(const GPUData* p_gpu_data)
@@ -267,9 +307,10 @@ void GLWidget::drawColorbarOverlay()
     if (renderer_.getMode() == Mode::BASIC)
     {
         bool vector_magnitude_mode = false;
-        if (!case_data_.steps_.empty() && !case_data_.steps_[0].parts_.empty())
+        int current_step_index = case_data_.current_step_index_;
+        if (!case_data_.steps_.empty() && !case_data_.steps_[current_step_index].parts_.empty())
         {
-            const Field* active_field = case_data_.steps_[0].parts_[0].active_field_;
+            const Field* active_field = case_data_.steps_[current_step_index].parts_[0].active_field_;
             vector_magnitude_mode = active_field && active_field->type_ == Type::VECTOR;
         }
         title = vector_magnitude_mode ? "Vector Magnitude" : "Scalar";
@@ -508,9 +549,10 @@ void GLWidget::setRenderMode(Mode mode)
 
     if (mode == Mode::STREAMLINE)
     {
-        if (!case_data_.steps_.empty())
+        int current_step_index = case_data_.current_step_index_;
+        if (!case_data_.steps_.empty() && current_step_index >= 0 && current_step_index < case_data_.steps_.size())
         {
-            auto& step = case_data_.steps_[0];
+            auto& step = case_data_.steps_[current_step_index];
             step.gpu_data_.streamline_vertices_.clear();
             step.gpu_data_.streamline_magnitudes_.clear();
             step.gpu_data_.streamline_line_starts_.clear();
@@ -570,12 +612,13 @@ void GLWidget::markStreamlineCacheDirty()
 
 void GLWidget::regenerateStreamlinesFromSeedSphere()
 {
-    if (case_data_.steps_.empty() || case_data_.steps_[0].parts_.empty())
+    int current_step_index = case_data_.current_step_index_;
+    if (case_data_.steps_.empty() || case_data_.steps_[current_step_index].parts_.empty())
     {
         return;
     }
 
-    auto& step = case_data_.steps_[0];
+    auto& step = case_data_.steps_[current_step_index];
     Field* active_field = step.parts_[0].active_field_;
     if (!active_field || active_field->type_ != Type::VECTOR)
     {

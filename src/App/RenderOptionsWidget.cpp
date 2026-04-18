@@ -2,6 +2,9 @@
 
 #include <QGroupBox>
 #include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QSlider>
+#include <QSpinBox>
 
 RenderOptionsWidget::RenderOptionsWidget(QWidget* parent) : QWidget(parent)
 {
@@ -46,7 +49,25 @@ void RenderOptionsWidget::setupUI()
     field_layout->addWidget(field_combo_);
     render_layout->addWidget(field_group);
 
+    // Time Step Group
+    time_step_group_ = new QGroupBox("时间步", this);
+    auto* time_step_layout = new QHBoxLayout(time_step_group_);
+    time_step_slider_ = new QSlider(Qt::Horizontal, time_step_group_);
+    time_step_spinbox_ = new QSpinBox(time_step_group_);
     
+    time_step_slider_->setEnabled(false);
+    time_step_spinbox_->setEnabled(false);
+
+    connect(time_step_slider_, &QSlider::valueChanged, time_step_spinbox_, &QSpinBox::setValue);
+    connect(time_step_spinbox_, QOverload<int>::of(&QSpinBox::valueChanged), time_step_slider_, &QSlider::setValue);
+    
+    time_step_layout->addWidget(time_step_slider_);
+    time_step_layout->addWidget(time_step_spinbox_);
+    render_layout->addWidget(time_step_group_);
+
+    time_step_group_->hide(); // Default hidden until multiple timesteps are loaded
+
+
     auto* field_options_widget = new QWidget(this);
     auto* options_layout = new QVBoxLayout(field_options_widget);
     options_layout->setContentsMargins(0, 0, 0, 0);
@@ -104,6 +125,16 @@ QComboBox* RenderOptionsWidget::vectorRenderModeCombo() const
     return vector_render_mode_combo_;
 }
 
+QSlider* RenderOptionsWidget::timeStepSlider() const
+{
+    return time_step_slider_;
+}
+
+QSpinBox* RenderOptionsWidget::timeStepSpinBox() const
+{
+    return time_step_spinbox_;
+}
+
 QString RenderOptionsWidget::currentField() const
 {
     return field_combo_->currentText();
@@ -133,6 +164,26 @@ void RenderOptionsWidget::setFieldItems(const QStringList& fields, const QString
     {
         field_combo_->setCurrentIndex(0);
     }
+}
+
+void RenderOptionsWidget::setTimeStepRange(int min_step, int max_step)
+{
+    time_step_slider_->setRange(min_step, max_step);
+    time_step_spinbox_->setRange(min_step, max_step);
+    bool enabled = (max_step > min_step);
+    time_step_slider_->setEnabled(enabled);
+    time_step_spinbox_->setEnabled(enabled);
+}
+
+void RenderOptionsWidget::setCurrentTimeStep(int step)
+{
+    time_step_spinbox_->setValue(step);
+    time_step_slider_->setValue(step);
+}
+
+void RenderOptionsWidget::setTimeStepVisible(bool visible)
+{
+    time_step_group_->setVisible(visible);
 }
 
 void RenderOptionsWidget::showScalarOptions()

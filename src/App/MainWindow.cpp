@@ -58,6 +58,9 @@ void MainWindow::setupUI()
     connect(render_options_widget_->vectorRenderModeCombo(),
             QOverload<int>::of(&QComboBox::currentIndexChanged), this,
             &MainWindow::onVectorRenderModeChanged);
+    // 连接时间步切换
+    connect(render_options_widget_->timeStepSlider(), &QSlider::valueChanged, this, &MainWindow::onTimeStepChanged);
+
     /*Basic Render Options Dock End*/
 
 
@@ -205,7 +208,8 @@ void MainWindow::updatePropertiesPanel()
         return;
     }
 
-    const TimeStepData& time_step = case_data->steps_[0];
+    int current_step_index = gl_widget_->getCurrentTimeStepIndex();
+    const TimeStepData& time_step = case_data->steps_[current_step_index];
 
     // 统计点、单元、场量信息
     int total_points = 0;
@@ -280,7 +284,73 @@ void MainWindow::updatePropertiesPanel()
 
 void MainWindow::openDirectory()
 {
-    // TODO: open directory
+    QString dirName = QFileDialog::getExistingDirectory(this, "打开包含时间步序列文件的目录", "E:/data/CAE");
+    if (dirName.isEmpty())
+    {
+        return;
+    }
+
+    QDir dir(dirName);
+    dir.setFilter(QDir::Files | QDir::NoSymLinks);
+
+    QRegularExpression re(R"(_(\d+)\.[^.]+$)");
+    
+    struct FileInfo {
+        QString path;
+        int timeStep;
+    };
+    std::vector<FileInfo> filesToLoad;
+
+    for (const QFileInfo& fileInfo : dir.entryInfoList())
+    {
+        QRegularExpressionMatch match = re.match(fileInfo.fileName());
+        if (match.hasMatch())
+        {
+            filesToLoad.push_back({fileInfo.absoluteFilePath(), match.captured(1).toInt()});
+        }
+    }
+
+    if (filesToLoad.empty())
+    {
+        qWarning() << "[MainWindow::openDirectory] : No valid time step files found.";
+        return;
+    }
+
+    std::sort(filesToLoad.begin(), filesToLoad.end(), [](const FileInfo& a, const FileInfo& b) {
+        return a.timeStep < b.timeStep;
+    });
+
+    std::vector<std::string> paths;
+    for (const auto& f : filesToLoad) {
+        paths.push_back(f.path.toStdString());
+    }
+
+    current_file_path_ = dirName.toStdString();
+    gl_widget_->loadFiles(paths);
+
+    if (paths.size() > 1) {
+        render_options_widget_->setTimeStepVisible(true);
+        render_options_widget_->setTimeStepRange(0, static_cast<int>(paths.size()) - 1);
+        render_options_widget_->setCurrentTimeStep(0);
+    } else {
+        render_options_widget_->setTimeStepVisible(false);
+    }
+    
+    updatePropertiesPanel();
+    updateFieldList();
+}
+
+void MainWindow::onTimeStepChanged(int step)
+{
+    gl_widget_->setTimeStep(step);
+    updatePropertiesPanel();
+    
+    // Maintain field if it was set
+    int idx = render_options_widget_->currentFieldIndex();
+    if (idx > 0)
+    {
+        onFieldSelectionChanged(idx);
+    }
 }
 
 void MainWindow::onFieldSelectionChanged(int index)
@@ -290,7 +360,7 @@ void MainWindow::onFieldSelectionChanged(int index)
 
     if (index == 0) // "无"选项
     {
-        gl_widget_->getCaseData()->steps_[0].activateField("无");
+        gl_widget_->getCaseData()->steps_[gl_widget_->getCurrentTimeStepIndex()].activateField("无");
         gl_widget_->setUseFieldColoring(false);
         gl_widget_->setRenderMode(Mode::BASIC);
         gl_widget_->setSeedSphereEditingEnabled(false);
@@ -299,7 +369,7 @@ void MainWindow::onFieldSelectionChanged(int index)
 
     QString field_name = render_options_widget_->currentField();
 
-    Type field_type = gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
+    Type field_type = gl_widget_->getCaseData()->steps_[gl_widget_->getCurrentTimeStepIndex()].activateField(field_name.toStdString());
     if (field_type == Type::SCALAR)
     {
         gl_widget_->setSeedSphereEditingEnabled(false);
@@ -326,7 +396,8 @@ void MainWindow::updateFieldList()
         return;
     }
 
-    const TimeStepData& time_step = case_data->steps_[0];
+    int current_step_index = gl_widget_->getCurrentTimeStepIndex();
+    const TimeStepData& time_step = case_data->steps_[current_step_index];
 
     // 收集所有标量字段名称（去重）和所有矢量字段名称
     QSet<QString> scalar_field_names;
@@ -401,12 +472,18 @@ void MainWindow::onColorSchemeChanged(int index)
 void MainWindow::onVectorRenderModeChanged(int index)
 {
     const CaseData* case_data = gl_widget_->getCaseData();
-    if (!case_data || case_data->steps_.empty() || case_data->steps_[0].parts_.empty())
+    if (!case_data || case_data->steps_.empty())
+    {
+        return;
+    }
+    
+    int current_step = gl_widget_->getCurrentTimeStepIndex();
+    if (case_data->steps_[current_step].parts_.empty())
     {
         return;
     }
 
-    const Field* active_field = case_data->steps_[0].parts_[0].active_field_;
+    const Field* active_field = case_data->steps_[current_step].parts_[0].active_field_;
     if (!active_field || active_field->type_ != Type::VECTOR)
     {
         return;
@@ -498,7 +575,8 @@ void MainWindow::onStreamlineVectorFieldChanged(const QString& field_name)
         return;
     }
 
-    gl_widget_->getCaseData()->steps_[0].activateField(field_name.toStdString());
+    int current_step = gl_widget_->getCurrentTimeStepIndex();
+    gl_widget_->getCaseData()->steps_[current_step].activateField(field_name.toStdString());
     gl_widget_->setSeedSphereEditingEnabled(true);
     // gl_widget_->setRenderMode(Mode::ARROW);
 }
@@ -537,8 +615,10 @@ void MainWindow::onGenerateStreamlinesRequested()
         return;
     }
 
+    int current_step = gl_widget_->getCurrentTimeStepIndex();
+
     // 激活矢量字段
-    Type field_type = case_data->steps_[0].activateField(vector_field.toStdString());
+    Type field_type = case_data->steps_[current_step].activateField(vector_field.toStdString());
     if (field_type != Type::VECTOR)
     {
         qWarning() << "Selected field is not a vector field";
@@ -546,7 +626,7 @@ void MainWindow::onGenerateStreamlinesRequested()
     }
 
     // 更新矢量缓冲区，确保GPU数据是最新的
-    // case_data->steps_[0].updateVectorBuffer();
+    // case_data->steps_[current_step].updateVectorBuffer();
 
     // 确保种子球编辑模式已启用
     // gl_widget_->setSeedSphereEditingEnabled(true);
