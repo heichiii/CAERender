@@ -9,6 +9,23 @@
 #endif
 #include <execution>
 #include <iostream>
+
+namespace
+{
+bool canReleaseFieldMaps(const MeshPart& part)
+{
+    // 如果只有 0/1 个字段，则不存在“切换字段”需求，可回收映射内存。
+    const size_t total_fields = part.point_fields_.size() + part.cell_fields_.size();
+    return total_fields <= 1;
+}
+
+template <typename T>
+void releaseVectorMemory(std::vector<T>& v)
+{
+    std::vector<T>().swap(v);
+}
+} // namespace
+
 void TimeStepData::generateGPUData()
 {
     PROFILE_CODE
@@ -36,6 +53,8 @@ void TimeStepData::generateGPUData()
     gpu_data_.scalar_fields_.clear();
     gpu_data_.normals_.clear();
     gpu_data_.indices_.clear();
+    parts_[0].vertex_to_point_map_.clear();
+    parts_[0].vertex_to_cell_map_.clear();
 
     // 表面提取：提取只出现一次的边界面
     std::sort(std::execution::par_unseq, parts_[0].faces_.begin(),
@@ -151,6 +170,9 @@ void TimeStepData::generateGPUData()
 
     std::cout << "[TimeStepData::generateGPUData] Generated " << (gpu_data_.indices_.size() / 3) 
               << " valid triangles, skipped " << skipped_triangles << " invalid triangles" << std::endl;
+
+    // 表面三角数据已进入 gpu_data_，faces_ 后续不再参与渲染主路径，释放其内存。
+    releaseVectorMemory(parts_[0].faces_);
 }
 
 Type TimeStepData::activateField(const std::string& field_name)
@@ -274,6 +296,12 @@ void TimeStepData::updateScalarBuffer()
             }
         }
     }
+
+    if (canReleaseFieldMaps(parts_[0]))
+    {
+        releaseVectorMemory(parts_[0].vertex_to_point_map_);
+        releaseVectorMemory(parts_[0].vertex_to_cell_map_);
+    }
 }
 
 void TimeStepData::updateVectorBuffer()
@@ -383,6 +411,12 @@ void TimeStepData::updateVectorBuffer()
     gpu_data_.scalar_fields_ = gpu_data_.vector_field_magnitudes_;
     gpu_data_.scalar_min_ = gpu_data_.vector_magnitude_min_;
     gpu_data_.scalar_max_ = gpu_data_.vector_magnitude_max_;
+
+    if (canReleaseFieldMaps(parts_[0]))
+    {
+        releaseVectorMemory(parts_[0].vertex_to_point_map_);
+        releaseVectorMemory(parts_[0].vertex_to_cell_map_);
+    }
 
    
 

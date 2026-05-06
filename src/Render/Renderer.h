@@ -166,7 +166,6 @@ private:
     LODLevel lod_level_;
     
     // LOD数据
-    std::vector<uint32_t> lod_high_indices_;
     std::vector<uint32_t> lod_medium_indices_;
     std::vector<uint32_t> lod_low_indices_;
     size_t active_lod_index_count_ = 0;

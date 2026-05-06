@@ -740,7 +740,6 @@ void Renderer::rebuildLODIndices()
 {
     if (!gpu_data_ || gpu_data_->indices_.empty())
     {
-        lod_high_indices_.clear();
         lod_medium_indices_.clear();
         lod_low_indices_.clear();
         active_lod_index_count_ = 0;
@@ -748,13 +747,12 @@ void Renderer::rebuildLODIndices()
         return;
     }
 
-    lod_high_indices_ = gpu_data_->indices_;
     lod_medium_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 52);
     lod_low_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 40);
 
-    if (lod_medium_indices_.size() > lod_high_indices_.size())
+    if (lod_medium_indices_.size() > gpu_data_->indices_.size())
     {
-        lod_medium_indices_ = lod_high_indices_;
+        lod_medium_indices_ = gpu_data_->indices_;
     }
     if (lod_low_indices_.size() > lod_medium_indices_.size())
     {
@@ -771,11 +769,11 @@ void Renderer::applyLODToIndexBuffer()
         return;
     }
 
-    const std::vector<uint32_t>* activeIndices = &lod_high_indices_;
+    const std::vector<uint32_t>* activeIndices = &gpu_data_->indices_;
     switch (lod_level_)
     {
         case LODLevel::HIGH:
-            activeIndices = &lod_high_indices_;
+            activeIndices = &gpu_data_->indices_;
             break;
         case LODLevel::MEDIUM:
             activeIndices = &lod_medium_indices_;
@@ -784,13 +782,13 @@ void Renderer::applyLODToIndexBuffer()
             activeIndices = &lod_low_indices_;
             break;
         default:
-            activeIndices = &lod_high_indices_;
+            activeIndices = &gpu_data_->indices_;
             break;
     }
 
     if (activeIndices->empty())
     {
-        activeIndices = &lod_high_indices_;
+        activeIndices = &gpu_data_->indices_;
     }
 
     active_lod_index_count_ = activeIndices->size();

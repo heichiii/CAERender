@@ -601,6 +601,26 @@ void GLWidget::setStreamlineSeedCount(int count)
 void GLWidget::setSeedSphereEditingEnabled(bool enabled)
 {
     seed_sphere_editing_enabled_ = enabled;
+
+    if (enabled)
+    {
+        // 按需构建拾取缓存，避免默认常驻占用内存。
+        const int current_step_index = case_data_.current_step_index_;
+        if (!has_pick_cache_ && !case_data_.steps_.empty() && current_step_index >= 0 &&
+            current_step_index < static_cast<int>(case_data_.steps_.size()))
+        {
+            rebuildPickingCache(&case_data_.steps_[current_step_index].gpu_data_);
+        }
+    }
+    else
+    {
+        // 退出编辑后释放拾取缓存，回收 Octree 与三角反查表内存。
+        pick_octree_.clear();
+        std::vector<std::vector<uint32_t>>().swap(vertex_to_triangles_);
+        pick_gpu_data_ = nullptr;
+        has_pick_cache_ = false;
+    }
+
     syncSeedSphereToRenderer();
     update();
 }
@@ -737,6 +757,7 @@ void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)
     pick_octree_.clear();
     pick_gpu_data_ = nullptr;
     vertex_to_triangles_.clear();
+    vertex_to_triangles_.shrink_to_fit();
     has_pick_cache_ = false;
     pick_query_radius_ = 0.01f;
     pick_ray_tmax_ = 10000.0f;
@@ -759,24 +780,7 @@ void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)
         emit seedSphereCenterChanged(QVector3D(0.0f, 0.0f, 0.0f), false);
         return;
     }
-
-    pick_octree_.build(p_gpu_data->surface_vertices_);
-
     const size_t vertex_count = p_gpu_data->surface_vertices_.size() / 3;
-    vertex_to_triangles_.assign(vertex_count, {});
-    for (size_t i = 0; i + 2 < p_gpu_data->indices_.size(); i += 3)
-    {
-        const uint32_t i0 = p_gpu_data->indices_[i + 0];
-        const uint32_t i1 = p_gpu_data->indices_[i + 1];
-        const uint32_t i2 = p_gpu_data->indices_[i + 2];
-        if (i0 >= vertex_count || i1 >= vertex_count || i2 >= vertex_count)
-            continue;
-
-        const uint32_t tri_id = static_cast<uint32_t>(i / 3);
-        vertex_to_triangles_[i0].push_back(tri_id);
-        vertex_to_triangles_[i1].push_back(tri_id);
-        vertex_to_triangles_[i2].push_back(tri_id);
-    }
 
     float min_x = std::numeric_limits<float>::max();
     float min_y = std::numeric_limits<float>::max();
@@ -809,6 +813,30 @@ void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)
     seed_sphere_radius_ = std::max(mesh_diag_ * 0.08f, 1e-4f);
     has_seed_anchor_ = true;
     seed_anchor_obj_ = mesh_center_obj_;
+
+    // 仅在需要拾取/拖拽编辑时才构建重缓存。
+    if (!seed_sphere_editing_enabled_)
+    {
+        syncSeedSphereToRenderer();
+        return;
+    }
+
+    pick_octree_.build(p_gpu_data->surface_vertices_);
+
+    vertex_to_triangles_.assign(vertex_count, {});
+    for (size_t i = 0; i + 2 < p_gpu_data->indices_.size(); i += 3)
+    {
+        const uint32_t i0 = p_gpu_data->indices_[i + 0];
+        const uint32_t i1 = p_gpu_data->indices_[i + 1];
+        const uint32_t i2 = p_gpu_data->indices_[i + 2];
+        if (i0 >= vertex_count || i1 >= vertex_count || i2 >= vertex_count)
+            continue;
+
+        const uint32_t tri_id = static_cast<uint32_t>(i / 3);
+        vertex_to_triangles_[i0].push_back(tri_id);
+        vertex_to_triangles_[i1].push_back(tri_id);
+        vertex_to_triangles_[i2].push_back(tri_id);
+    }
 
     pick_gpu_data_ = p_gpu_data;
     has_pick_cache_ = true;
