@@ -23,6 +23,7 @@ find_package(VTK REQUIRED COMPONENTS
   FiltersGeometry
   IOLegacy
   IOXML
+  IOCGNSReader
 )
 
 file(GLOB_RECURSE SOURCES

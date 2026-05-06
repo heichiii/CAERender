@@ -184,7 +184,7 @@ void MainWindow::openFile()
     QString filename = "E:\\data\\CAE\\VTK_Submarine2/Submarine_case_4.vtk";
 #else
     QString filename = QFileDialog::getOpenFileName(
-        this, "打开VTK文件", "E:/data/CAE", "VTK Files (*.vtk *.vtu *.vtp);;All Files (*.*);");
+        this, "打开模型文件", "E:/data/CAE", "Mesh Files (*.vtk *.vtu *.vtp *.ply *.cgns);;VTK Files (*.vtk *.vtu *.vtp);;PLY Files (*.ply);;CGNS Files (*.cgns);;All Files (*.*);");
 #endif
     if (filename.isEmpty())
     {

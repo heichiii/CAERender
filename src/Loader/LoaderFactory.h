@@ -2,13 +2,12 @@
 #include "Loader.h"
 #include "VTKLoader.h"
 #include "PLYLoader.h"
+#include "CGNSLoader.h"
 #include <memory>
 #include <string>
 
 class LoaderFactory
 {
-
-
 public:
     static std::unique_ptr<Loader> createLoader(const std::string& filename)
     {
@@ -20,6 +19,10 @@ public:
         else if (endsWith(filename, ".ply"))
         {
             return std::make_unique<PLYLoader>(filename);
+        }
+        else if (endsWith(filename, ".cgns"))
+        {
+            return std::make_unique<CGNSLoader>(filename);
         }
         // 可以添加更多格式的支持
         return nullptr; // 不支持的格式
