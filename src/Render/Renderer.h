@@ -126,6 +126,9 @@ private:
     QOpenGLBuffer arrow_dir_buffer_;
     QOpenGLBuffer arrow_mag_buffer_;
     std::unique_ptr<ShaderProgram> arrow_shader_program_;
+    size_t arrow_instance_count_ = 0;
+    float arrow_mag_min_cached_ = 0.0f;
+    float arrow_mag_max_cached_ = 1.0f;
 
 
     // streamline渲染相关
@@ -138,6 +141,8 @@ private:
     std::vector<GLsizei> streamline_count_array_;
     size_t streamline_pos_capacity_bytes_ = 0;
     size_t streamline_mag_capacity_bytes_ = 0;
+    float streamline_mag_min_cached_ = 0.0f;
+    float streamline_mag_max_cached_ = 1.0f;
 
     // 拾取点高亮
     QOpenGLVertexArrayObject pick_point_vao_;

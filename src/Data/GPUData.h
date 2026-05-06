@@ -26,4 +26,21 @@ public:
     std::vector<uint32_t> streamline_line_counts_;  // 每条流线的顶点数
     float streamline_magnitude_min_;
     float streamline_magnitude_max_;
+    // 在数据上传到显存后，可调用此方法释放占用大量 RAM 的 CPU-side 副本
+    void releaseCPUMemory()
+    {
+        std::vector<float>().swap(surface_vertices_);
+        std::vector<float>().swap(scalar_fields_);
+        std::vector<float>().swap(normals_);
+        std::vector<uint32_t>().swap(indices_);
+
+        std::vector<float>().swap(vector_field_positions_);
+        std::vector<float>().swap(vector_field_directions_);
+        std::vector<float>().swap(vector_field_magnitudes_);
+
+        std::vector<float>().swap(streamline_vertices_);
+        std::vector<float>().swap(streamline_magnitudes_);
+        std::vector<uint32_t>().swap(streamline_line_starts_);
+        std::vector<uint32_t>().swap(streamline_line_counts_);
+    }
 };
