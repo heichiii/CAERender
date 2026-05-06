@@ -25,9 +25,23 @@ MeshPart CGNSLoader::load()
 
     auto reader = vtkSmartPointer<vtkCGNSReader>::New();
     reader->SetFileName(filename_.c_str());
-    // Enable all points/cell arrays
+    
+    // IMPORTANT: Must call UpdateInformation before enabling arrays!
+    reader->UpdateInformation();
+    reader->EnableAllBases();
+    for(int i=0; i<reader->GetNumberOfBaseArrays(); ++i) {
+        reader->SetBaseArrayStatus(reader->GetBaseArrayName(i), 1);
+    }
+    reader->EnableAllFamilies();
     reader->EnableAllCellArrays();
+    for(int i=0; i<reader->GetNumberOfCellArrays(); ++i) {
+        reader->SetCellArrayStatus(reader->GetCellArrayName(i), 1);
+    }
     reader->EnableAllPointArrays();
+    for(int i=0; i<reader->GetNumberOfPointArrays(); ++i) {
+        reader->SetPointArrayStatus(reader->GetPointArrayName(i), 1);
+    }
+    
     reader->Update();
 
     auto output = reader->GetOutput();
@@ -174,6 +188,9 @@ void CGNSLoader::processGrid(vtkUnstructuredGrid* dataset, MeshPart& mesh_part, 
 #undef IDX
     }
     
+    std::cout << "[CGNSLoader] Found Point Arrays: " << dataset->GetPointData()->GetNumberOfArrays() << " empty: " << mesh_part.point_fields_.empty() << std::endl;
+    std::cout << "[CGNSLoader] Found Cell Arrays: " << dataset->GetCellData()->GetNumberOfArrays() << " empty: " << mesh_part.cell_fields_.empty() << std::endl;
+
     // (提取点/单元数据的部分，因为可能是多区块，可以合并Field，为简便假设只有一个主数据区)
     // 为简便起见，只向mesh_part追加第一次遇到的Field
     if (dataset->GetPointData()->GetNumberOfArrays() > 0 && mesh_part.point_fields_.empty()) {
@@ -224,6 +241,12 @@ void CGNSLoader::processGrid(vtkUnstructuredGrid* dataset, MeshPart& mesh_part, 
             if (f.type_ == Type::SCALAR) f.computeRange();
             mesh_part.cell_fields_.push_back(f);
         }
+    }
+
+    if (!mesh_part.point_fields_.empty() && !mesh_part.active_field_) {
+        mesh_part.active_field_ = &mesh_part.point_fields_[0];
+    } else if (!mesh_part.cell_fields_.empty() && !mesh_part.active_field_) {
+        mesh_part.active_field_ = &mesh_part.cell_fields_[0];
     }
 
     current_vertex_offset += point_count;
