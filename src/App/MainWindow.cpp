@@ -213,14 +213,14 @@ void MainWindow::updatePropertiesPanel()
 
     // 统计点、单元、场量信息
     int total_points = 0;
-    int total_faces = 0;
+    int total_cells = 0;
     int total_point_fields = 0;
     int total_cell_fields = 0;
 
     for (const auto& part : time_step.parts_)
     {
         total_points += part.vertices_.size() / 3; // 3个浮点数为一个点
-        total_faces += part.faces_.size();
+        total_cells += part.cells_.size();
         total_point_fields += part.point_fields_.size();
         total_cell_fields += part.cell_fields_.size();
     }
@@ -232,7 +232,7 @@ void MainWindow::updatePropertiesPanel()
     // Mesh Info
     text += "Mesh Info:\n";
     text += QString("  Total Points: %1\n").arg(total_points);
-    text += QString("  Total Faces: %1\n\n").arg(total_faces);
+    text += QString("  Total Cells: %1\n\n").arg(total_cells);
 
     // Point Fields
     text += QString("Point Fields (%1):\n").arg(total_point_fields);
