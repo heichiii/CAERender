@@ -152,6 +152,7 @@ int RenderOptionsWidget::vectorRenderModeIndex() const
 
 void RenderOptionsWidget::setFieldItems(const QStringList& fields, const QString& current_selection)
 {
+    field_combo_->blockSignals(true);
     field_combo_->clear();
     field_combo_->addItems(fields);
 
@@ -164,6 +165,10 @@ void RenderOptionsWidget::setFieldItems(const QStringList& fields, const QString
     {
         field_combo_->setCurrentIndex(0);
     }
+    field_combo_->blockSignals(false);
+    
+    // 手动触发一次更新
+    emit field_combo_->currentIndexChanged(field_combo_->currentIndex());
 }
 
 void RenderOptionsWidget::setTimeStepRange(int min_step, int max_step)

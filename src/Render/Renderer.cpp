@@ -414,9 +414,9 @@ void Renderer::updateBasicBuffers()
 
     // 已将顶点/法线/标量上传到显存，释放对应的 CPU-side 缓存以降低内存占用。
     // 注意保留 indices_ 以便在需要时重新构建 LOD 或切换回 HIGH 级别。
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->surface_vertices_);
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->normals_);
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->scalar_fields_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->surface_vertices_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->normals_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->scalar_fields_);
 
 
     vao_.release();
@@ -495,9 +495,9 @@ void Renderer::updateArrowBuffers()
     arrow_mag_max_cached_ = gpu_data_->vector_magnitude_max_;
 
     // 上传完成后释放 CPU-side 矢量场数据，避免占用过多 RAM
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_positions_);
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_directions_);
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_magnitudes_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_positions_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_directions_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_magnitudes_);
 }
 void Renderer::updateStreamlineBuffers()
 {
@@ -587,10 +587,10 @@ void Renderer::updateStreamlineBuffers()
 
     qDebug() << "Streamline buffers updated successfully";
     // 上传完流线数据并构建批量绘制参数后，释放 CPU-side 流线缓存
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->streamline_vertices_);
-    std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->streamline_magnitudes_);
-    std::vector<uint32_t>().swap(const_cast<GPUData*>(gpu_data_)->streamline_line_starts_);
-    std::vector<uint32_t>().swap(const_cast<GPUData*>(gpu_data_)->streamline_line_counts_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->streamline_vertices_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->streamline_magnitudes_);
+    // std::vector<uint32_t>().swap(const_cast<GPUData*>(gpu_data_)->streamline_line_starts_);
+    // std::vector<uint32_t>().swap(const_cast<GPUData*>(gpu_data_)->streamline_line_counts_);
 }
 void Renderer::renderBasic(const Camera& camera)
 {

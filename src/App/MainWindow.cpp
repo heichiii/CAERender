@@ -355,12 +355,14 @@ void MainWindow::onTimeStepChanged(int step)
 
 void MainWindow::onFieldSelectionChanged(int index)
 {
+    if (index < 0) return;
+
     // 隐藏所有场量选项
     render_options_widget_->hideFieldOptions();
 
     if (index == 0) // "无"选项
     {
-        gl_widget_->getCaseData()->steps_[gl_widget_->getCurrentTimeStepIndex()].activateField("无");
+        gl_widget_->activateField("无");
         gl_widget_->setUseFieldColoring(false);
         gl_widget_->setRenderMode(Mode::BASIC);
         gl_widget_->setSeedSphereEditingEnabled(false);
@@ -369,7 +371,7 @@ void MainWindow::onFieldSelectionChanged(int index)
 
     QString field_name = render_options_widget_->currentField();
 
-    Type field_type = gl_widget_->getCaseData()->steps_[gl_widget_->getCurrentTimeStepIndex()].activateField(field_name.toStdString());
+    Type field_type = gl_widget_->activateField(field_name.toStdString());
     if (field_type == Type::SCALAR)
     {
         gl_widget_->setSeedSphereEditingEnabled(false);
@@ -575,8 +577,7 @@ void MainWindow::onStreamlineVectorFieldChanged(const QString& field_name)
         return;
     }
 
-    int current_step = gl_widget_->getCurrentTimeStepIndex();
-    gl_widget_->getCaseData()->steps_[current_step].activateField(field_name.toStdString());
+    gl_widget_->activateField(field_name.toStdString());
     gl_widget_->setSeedSphereEditingEnabled(true);
     // gl_widget_->setRenderMode(Mode::ARROW);
 }
@@ -615,10 +616,8 @@ void MainWindow::onGenerateStreamlinesRequested()
         return;
     }
 
-    int current_step = gl_widget_->getCurrentTimeStepIndex();
-
     // 激活矢量字段
-    Type field_type = case_data->steps_[current_step].activateField(vector_field.toStdString());
+    Type field_type = gl_widget_->activateField(vector_field.toStdString());
     if (field_type != Type::VECTOR)
     {
         qWarning() << "Selected field is not a vector field";

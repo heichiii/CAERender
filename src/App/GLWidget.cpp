@@ -535,6 +535,18 @@ void GLWidget::setStreamlineVisible(bool visible)
     update();
 }
 
+Type GLWidget::activateField(const std::string& field_name)
+{
+    if (case_data_.steps_.empty())
+        return Type::NONE;
+
+    Type type = case_data_.steps_[case_data_.current_step_index_].activateField(field_name);
+    // 更新网格（把新字段的缓冲区上传到GPU）
+    setMesh(&case_data_.steps_[case_data_.current_step_index_].gpu_data_);
+    update();
+    return type;
+}
+
 // void GLWidget::setVectorRenderMode(VectorRenderMode mode)
 // {
 //     makeCurrent();
