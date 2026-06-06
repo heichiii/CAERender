@@ -31,11 +31,10 @@ void RenderOptionsWidget::setupUI()
     lod_enable_checkbox_->setChecked(false);
     lod_layout->addWidget(lod_enable_checkbox_);
 
-    auto* lod_level_label = new QLabel("交互细节:", lod_group);
+    auto* lod_level_label = new QLabel("交互LOD:", lod_group);
     lod_layout->addWidget(lod_level_label);
     lod_level_combo_ = new QComboBox(lod_group);
-    lod_level_combo_->addItem("中细节");
-    lod_level_combo_->addItem("低细节");
+    lod_level_combo_->addItem("自动: 近处中细节 / 远处低细节");
     lod_level_combo_->setCurrentIndex(0);
     lod_level_combo_->setEnabled(false);
     lod_layout->addWidget(lod_level_combo_);

@@ -47,9 +47,6 @@ void MainWindow::setupUI()
     // 连接LOD复选框
     connect(render_options_widget_->lodCheckBox(), &QCheckBox::toggled, this,
             &MainWindow::onLodCheckBoxToggled);
-        connect(render_options_widget_->lodLevelCombo(),
-            QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &MainWindow::onLodLevelComboChanged);
     // 连接配色方案
     connect(render_options_widget_->colorSchemeCombo(),
             QOverload<int>::of(&QComboBox::currentIndexChanged), this,
@@ -76,10 +73,8 @@ void MainWindow::setupUI()
             this, &MainWindow::onStreamlineVectorFieldChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineRenderModeChanged, this,
             &MainWindow::onStreamlineRenderModeChanged);
-        connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineLodEnabledChanged,
+    connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineLodEnabledChanged,
             this, &MainWindow::onStreamlineLodEnabledChanged);
-    connect(streamline_options_widget_, &StreamlineOptionsWidget::streamlineLodLevelChanged, this,
-            &MainWindow::onStreamlineLodLevelChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::seedSphereRadiusChanged, this,
             &MainWindow::onSeedSphereRadiusChanged);
     connect(streamline_options_widget_, &StreamlineOptionsWidget::seedSphereCountChanged, this,
@@ -537,12 +532,6 @@ void MainWindow::onLodCheckBoxToggled(bool checked)
     gl_widget_->setLODEnabled(checked);
 }
 
-void MainWindow::onLodLevelComboChanged(int index)
-{
-    const LODLevel level = (index == 0) ? LODLevel::MEDIUM : LODLevel::LOW;
-    gl_widget_->setInteractionLODLevel(level);
-}
-
 void MainWindow::onSeedSphereRadiusChanged(double value)
 {
     gl_widget_->setSeedSphereRadius(static_cast<float>(value));
@@ -592,11 +581,6 @@ void MainWindow::onStreamlineRenderModeChanged(int mode)
 void MainWindow::onStreamlineLodEnabledChanged(bool checked)
 {
     gl_widget_->setLODEnabled(checked);
-}
-
-void MainWindow::onStreamlineLodLevelChanged(LODLevel level)
-{
-    gl_widget_->setInteractionLODLevel(level);
 }
 
 void MainWindow::onGenerateStreamlinesRequested()

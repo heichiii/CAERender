@@ -34,7 +34,6 @@ signals:
     void streamlineVectorFieldChanged(const QString& field_name);
     void streamlineRenderModeChanged(int mode);  // 0: solid, 1: point cloud
     void streamlineLodEnabledChanged(bool enabled);
-    void streamlineLodLevelChanged(LODLevel level);
     void seedSphereRadiusChanged(double radius);
     void seedSphereCountChanged(int count);
     void seedSphereOffsetChanged(const QVector3D& offset);
@@ -43,7 +42,6 @@ signals:
 private slots:
     void onVectorFieldChanged(int index);
     void onRenderModeChanged(int index);
-    void onLodLevelChanged(int index);
     void onSeedRadiusChanged(double value);
     void onSeedCountChanged(int value);
     void onSeedOffsetXChanged(double value);

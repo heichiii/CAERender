@@ -55,7 +55,6 @@ public:
     // LOD控制
     void updateLOD();
     void setLODEnabled(bool enabled);
-    void setInteractionLODLevel(LODLevel level);
     bool isLODEnabled() const { return lod_enabled_; }
 
 signals:
@@ -91,11 +90,11 @@ private:
     // 操作状态标志
     bool is_lod_interacting_ = false;  // 仅旋转/平移相机时为 true
     bool lod_enabled_ = false;  // LOD功能是否启用
-    LODLevel interaction_lod_level_ = LODLevel::MEDIUM; // 旋转/平移时目标LOD
     int lod_update_delay_ = 0;  // LOD 更新延迟计数器（防抖）
 
     // 计算屏幕中心作为旋转中心
     QVector3D getScreenCenterInWorld() const;
+    LODLevel selectInteractionLODLevel() const;
     void drawColorbarOverlay();
     static QColor mapColor(float t, ColorScheme scheme);
 

@@ -15,6 +15,7 @@
 namespace
 {
 constexpr float kRayEpsilon = 1e-6f;
+constexpr float kLowLodDistanceScale = 1.1f;
 
 bool rayTriangleIntersect(const QVector3D& ray_origin,
                           const QVector3D& ray_dir,
@@ -357,6 +358,19 @@ QVector3D GLWidget::getScreenCenterInWorld() const
     // 简化版本：屏幕中心映射到世界坐标（此处使用物体原点）
     // 在实际应用中，可以进行光线投射来获取3D场景中的精确位置
     return QVector3D(0.0f, 0.0f, 0.0f);
+}
+
+LODLevel GLWidget::selectInteractionLODLevel() const
+{
+    const float mesh_scale = std::max(mesh_diag_, 1e-4f);
+    const float camera_distance = camera_.getDistanceToTarget();
+    if (!std::isfinite(camera_distance))
+    {
+        return LODLevel::MEDIUM;
+    }
+
+    const float normalized_distance = camera_distance / mesh_scale;
+    return (normalized_distance >= kLowLodDistanceScale) ? LODLevel::LOW : LODLevel::MEDIUM;
 }
 
 void GLWidget::mousePressEvent(QMouseEvent* event)
@@ -715,7 +729,7 @@ void GLWidget::updateLOD()
     LODLevel target_level = LODLevel::HIGH;
     if (is_lod_interacting_)
     {
-        target_level = interaction_lod_level_;
+        target_level = selectInteractionLODLevel();
     }
     
     // 防抖机制：延迟 2 帧才切换回 HIGH（避免频繁切换）
@@ -756,12 +770,6 @@ void GLWidget::setLODEnabled(bool enabled)
         emit lodLevelChanged(LODLevel::HIGH);
         update();
     }
-}
-
-void GLWidget::setInteractionLODLevel(LODLevel level)
-{
-    interaction_lod_level_ = level;
-    update();
 }
 
 void GLWidget::rebuildPickingCache(const GPUData* p_gpu_data)

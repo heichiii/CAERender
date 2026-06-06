@@ -41,10 +41,9 @@ void StreamlineOptionsWidget::setupUI()
     lod_layout->addWidget(streamline_lod_checkbox_);
 
     auto* lod_level_layout = new QHBoxLayout();
-    lod_level_layout->addWidget(new QLabel("LOD级别:"));
+    lod_level_layout->addWidget(new QLabel("交互LOD:"));
     streamline_lod_combo_ = new QComboBox();
-    streamline_lod_combo_->addItem("中细节");
-    streamline_lod_combo_->addItem("低细节");
+    streamline_lod_combo_->addItem("自动: 近处中细节 / 远处低细节");
     streamline_lod_combo_->setCurrentIndex(0);
     streamline_lod_combo_->setEnabled(false);
     lod_level_layout->addWidget(streamline_lod_combo_);
@@ -131,13 +130,7 @@ void StreamlineOptionsWidget::setupUI()
     connect(streamline_lod_checkbox_, &QCheckBox::toggled, this, [this](bool checked) {
         streamline_lod_combo_->setEnabled(checked);
         emit streamlineLodEnabledChanged(checked);
-        if (checked)
-        {
-            onLodLevelChanged(streamline_lod_combo_->currentIndex());
-        }
     });
-    connect(streamline_lod_combo_, QOverload<int>::of(&QComboBox::currentIndexChanged), this,
-            &StreamlineOptionsWidget::onLodLevelChanged);
     connect(seed_radius_spin_, QOverload<double>::of(&QDoubleSpinBox::valueChanged), this,
             &StreamlineOptionsWidget::onSeedRadiusChanged);
     connect(seed_count_spin_, QOverload<int>::of(&QSpinBox::valueChanged), this,
@@ -203,15 +196,6 @@ void StreamlineOptionsWidget::onVectorFieldChanged(int index)
 void StreamlineOptionsWidget::onRenderModeChanged(int index)
 {
     emit streamlineRenderModeChanged(index);
-}
-
-void StreamlineOptionsWidget::onLodLevelChanged(int index)
-{
-    if (streamline_lod_checkbox_->isChecked())
-    {
-        const LODLevel level = (index == 0) ? LODLevel::MEDIUM : LODLevel::LOW;
-        emit streamlineLodLevelChanged(level);
-    }
 }
 
 void StreamlineOptionsWidget::onSeedRadiusChanged(double value)
