@@ -10,10 +10,12 @@
 #include <QFileDialog>
 #include <QLabel>
 #include <QMenuBar>
+#include <QProgressDialog>
 #include <QSet>
 #include <QSignalBlocker>
 #include <QStatusBar>
 #include <QWidgetAction>
+#include <algorithm>
 MainWindow::MainWindow(QWidget* parent) : QMainWindow(parent)
 {
     setWindowTitle("CAE Renderer");
@@ -97,6 +99,12 @@ void MainWindow::setupUI()
     connect(gl_widget_, &GLWidget::lodLevelChanged, this, &MainWindow::onLodLevelChanged);
     connect(gl_widget_, &GLWidget::seedSphereCenterChanged, this,
             &MainWindow::onSeedSphereCenterChanged);
+    connect(gl_widget_, &GLWidget::streamlineGenerationStarted, this,
+            &MainWindow::onStreamlineGenerationStarted);
+    connect(gl_widget_, &GLWidget::streamlineGenerationProgress, this,
+            &MainWindow::onStreamlineGenerationProgress);
+    connect(gl_widget_, &GLWidget::streamlineGenerationFinished, this,
+            &MainWindow::onStreamlineGenerationFinished);
     /* Properties Dock End */
 
     /* Status Bar Begin */
@@ -556,6 +564,64 @@ void MainWindow::onSeedSphereCenterChanged(const QVector3D& center, bool valid)
     }
 
     streamline_options_widget_->setSeedSphereCenter(center);
+}
+
+void MainWindow::onStreamlineGenerationStarted()
+{
+    streamline_options_widget_->setGenerationRunning(true);
+
+    if (!streamline_progress_dialog_)
+    {
+        streamline_progress_dialog_ = new QProgressDialog("正在生成流线...", "取消", 0, 100, this);
+        streamline_progress_dialog_->setWindowTitle("流线生成");
+        streamline_progress_dialog_->setWindowModality(Qt::NonModal);
+        streamline_progress_dialog_->setAutoClose(false);
+        streamline_progress_dialog_->setAutoReset(false);
+        connect(streamline_progress_dialog_, &QProgressDialog::canceled, gl_widget_,
+                &GLWidget::cancelStreamlineGeneration);
+    }
+
+    streamline_progress_dialog_->setLabelText("正在生成流线...");
+    streamline_progress_dialog_->setRange(0, 100);
+    streamline_progress_dialog_->setValue(0);
+    streamline_progress_dialog_->show();
+}
+
+void MainWindow::onStreamlineGenerationProgress(int completed, int total)
+{
+    if (!streamline_progress_dialog_)
+    {
+        return;
+    }
+
+    const int safe_total = std::max(1, total);
+    streamline_progress_dialog_->setRange(0, safe_total);
+    streamline_progress_dialog_->setValue(std::clamp(completed, 0, safe_total));
+    streamline_progress_dialog_->setLabelText(
+        QString("正在生成流线... %1/%2").arg(completed).arg(safe_total));
+}
+
+void MainWindow::onStreamlineGenerationFinished(bool success, bool canceled, const QString& message)
+{
+    streamline_options_widget_->setGenerationRunning(false);
+
+    if (streamline_progress_dialog_)
+    {
+        streamline_progress_dialog_->hide();
+    }
+
+    if (canceled)
+    {
+        statusBar()->showMessage("流线生成已取消", 3000);
+    }
+    else if (success)
+    {
+        statusBar()->showMessage(message, 3000);
+    }
+    else
+    {
+        statusBar()->showMessage(message.isEmpty() ? "流线生成失败" : message, 5000);
+    }
 }
 
 void MainWindow::onStreamlineVectorFieldChanged(const QString& field_name)

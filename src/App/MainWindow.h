@@ -12,6 +12,9 @@
 #include <QLabel>
 #include <QVector3D>
 #include <string>
+
+class QProgressDialog;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -42,6 +45,7 @@ private:
     // Status bar labels
     QLabel* fps_label_;
     QLabel* lod_label_;
+    QProgressDialog* streamline_progress_dialog_ = nullptr;
 
     std::string current_file_path_;
 
@@ -57,6 +61,9 @@ private slots:
     void onLodLevelChanged(LODLevel level);
     void onLodCheckBoxToggled(bool checked);
     void onSeedSphereCenterChanged(const QVector3D& center, bool valid);
+    void onStreamlineGenerationStarted();
+    void onStreamlineGenerationProgress(int completed, int total);
+    void onStreamlineGenerationFinished(bool success, bool canceled, const QString& message);
     void onStreamlineLodEnabledChanged(bool checked);
 
     // Streamline options signals

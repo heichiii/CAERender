@@ -3,6 +3,7 @@
 #include <QDebug>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cmath>
 #include <limits>
 #include <omp.h>
@@ -81,7 +82,7 @@ namespace Streamline
     std::vector<Streamline> StreamlineGenerator::generate(
         const std::vector<QVector3D>& seed_positions, const Field* vector_field,
         const std::vector<float>& mesh_vertices, const StreamlineParams& params,
-        const MeshPart* mesh_part)
+        const MeshPart* mesh_part, const ProgressCallback& progress_callback)
     {
         PROFILE_CODE
         if (!vector_field || seed_positions.empty() || mesh_vertices.empty())
@@ -240,18 +241,32 @@ namespace Streamline
             }
         }
 
+        std::atomic<int> completed_count{0};
+        std::atomic_bool cancel_requested{false};
+        const int total_count = static_cast<int>(seed_positions.size());
+
 // 并行生成流线
 #pragma omp parallel for num_threads(params.num_threads) schedule(dynamic)
-        for (int i = 0; i < static_cast<int>(seed_positions.size()); ++i)
+        for (int i = 0; i < total_count; ++i)
         {
-            streamlines[i] =
-                generateSingleStreamline(seed_positions[i], vector_field, mesh_vertices, params);
+            if (!cancel_requested.load(std::memory_order_relaxed))
+            {
+                streamlines[i] =
+                    generateSingleStreamline(seed_positions[i], vector_field, mesh_vertices, params);
+            }
+
+            const int done = completed_count.fetch_add(1, std::memory_order_relaxed) + 1;
+            if (progress_callback && !progress_callback(done, total_count))
+            {
+                cancel_requested.store(true, std::memory_order_relaxed);
+            }
         }
 
         qDebug() << "Generated" << streamlines.size() << "streamlines";
 
         // 后处理平滑
-        if (params.enable_smoothing && params.smooth_iterations > 0)
+        if (!cancel_requested.load(std::memory_order_relaxed) && params.enable_smoothing &&
+            params.smooth_iterations > 0)
         {
             smoothStreamlines(streamlines, params.smooth_iterations);
             qDebug() << "Streamlines smoothed with" << params.smooth_iterations << "iterations";

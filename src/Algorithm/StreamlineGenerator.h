@@ -6,6 +6,7 @@
 #include <QVector3D>
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <vector>
 
 namespace Streamline
@@ -47,6 +48,8 @@ namespace Streamline
         StreamlineGenerator();
         ~StreamlineGenerator();
 
+        using ProgressCallback = std::function<bool(int completed, int total)>;
+
         /**
          * @brief 生成流线（主接口 - 支持并行）
          * @param seed_positions 种子点位置列表
@@ -59,7 +62,8 @@ namespace Streamline
                                          const Field* vector_field,
                                          const std::vector<float>& mesh_vertices,
                                          const StreamlineParams& params = StreamlineParams(),
-                                         const MeshPart* mesh_part = nullptr);
+                                         const MeshPart* mesh_part = nullptr,
+                                         const ProgressCallback& progress_callback = {});
 
         /**
          * @brief 生成单条流线（内部使用）

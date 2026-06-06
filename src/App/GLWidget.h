@@ -7,21 +7,25 @@
 #include <QVector3D>
 #include <QQuaternion>
 #include <QColor>
+#include <QString>
 #include "Data/CaseData.h"
 #include "Data/Octree.h"
 #include "Render/Renderer.h"
 #include "Render/Camera.h"
 
+#include <atomic>
 #include <cstdint>
 #include <limits>
 #include <vector>
+
+class QThread;
 
 class GLWidget: public QOpenGLWidget
 {
     Q_OBJECT
 public:
     explicit GLWidget(QWidget* parent = nullptr);
-    ~GLWidget() override= default;
+    ~GLWidget() override;
     void loadFile(const std::string& filename);
     void loadFiles(const std::vector<std::string>& filenames);
     void setMesh(const GPUData* p_gpu_data);
@@ -45,6 +49,7 @@ public:
     void setSeedSphereEditingEnabled(bool enabled);
     void markStreamlineCacheDirty();
     void regenerateStreamlinesFromSeedSphere();
+    void cancelStreamlineGeneration();
     float getSeedSphereRadius() const { return seed_sphere_radius_; }
     QVector3D getSeedSphereOffset() const { return seed_offset_obj_; }
     int getStreamlineSeedCount() const { return streamline_seed_count_; }
@@ -61,6 +66,9 @@ signals:
     void fpsUpdated(float fps);
     void lodLevelChanged(LODLevel level);
     void seedSphereCenterChanged(const QVector3D& center, bool valid);
+    void streamlineGenerationStarted();
+    void streamlineGenerationProgress(int completed, int total);
+    void streamlineGenerationFinished(bool success, bool canceled, const QString& message);
 
 private:
     void initializeGL() override;
@@ -135,6 +143,8 @@ private:
     // 流线缓存状态
     bool streamline_cache_dirty_ = true;
     bool has_streamline_cache_ = false;
+    QThread* streamline_generation_thread_ = nullptr;
+    std::atomic_bool streamline_generation_cancelled_{false};
     QVector3D cached_seed_center_ = QVector3D(0.0f, 0.0f, 0.0f);
     float cached_seed_radius_ = -1.0f;
     int cached_seed_count_ = -1;

@@ -162,6 +162,11 @@ void StreamlineOptionsWidget::setSeedSphereCenter(const QVector3D& center)
                                    .arg(center.z(), 0, 'f', 4));
 }
 
+void StreamlineOptionsWidget::setGenerationRunning(bool running)
+{
+    generate_button_->setEnabled(!running);
+}
+
 int StreamlineOptionsWidget::getStreamlineSeedCount() const
 {
     return seed_count_spin_->value();

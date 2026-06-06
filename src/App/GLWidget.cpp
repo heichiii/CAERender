@@ -1,21 +1,54 @@
 #include "GLWidget.h"
+#include "Algorithm/StreamlineGenerator.h"
 #include "Loader/LoaderFactory.h"
 #include "TestTool/Profiler.h"
 #include <QDebug>
+#include <QMetaObject>
 #include <QOpenGLContext>
 #include <QOpenGLFunctions>
 #include <QPainter>
+#include <QThread>
 #include <QVector4D>
 
 #include <algorithm>
 #include <cmath>
 #include <limits>
+#include <memory>
+#include <random>
 #include <unordered_set>
 
 namespace
 {
 constexpr float kRayEpsilon = 1e-6f;
 constexpr float kLowLodDistanceScale = 1.1f;
+
+struct StreamlineGenerationSnapshot
+{
+    std::vector<float> vertices;
+    std::vector<CellData> cells;
+    Field vector_field;
+    QString field_name;
+    QVector3D center;
+    float radius = 0.1f;
+    int seed_count = 1;
+};
+
+struct StreamlineGenerationResult
+{
+    bool success = false;
+    bool canceled = false;
+    QString message;
+    QString field_name;
+    QVector3D center = QVector3D(0.0f, 0.0f, 0.0f);
+    float radius = 0.1f;
+    int seed_count = 1;
+    std::vector<float> vertices;
+    std::vector<float> magnitudes;
+    std::vector<uint32_t> line_starts;
+    std::vector<uint32_t> line_counts;
+    float magnitude_min = 0.0f;
+    float magnitude_max = 1.0f;
+};
 
 bool rayTriangleIntersect(const QVector3D& ray_origin,
                           const QVector3D& ray_dir,
@@ -50,10 +83,173 @@ bool rayTriangleIntersect(const QVector3D& ray_origin,
     t_out = t;
     return true;
 }
+
+std::shared_ptr<StreamlineGenerationResult> buildStreamlineBuffer(
+    const StreamlineGenerationSnapshot& snapshot,
+    const std::atomic_bool& cancel_requested,
+    const Streamline::StreamlineGenerator::ProgressCallback& progress_callback)
+{
+    auto result = std::make_shared<StreamlineGenerationResult>();
+    result->field_name = snapshot.field_name;
+    result->center = snapshot.center;
+    result->radius = snapshot.radius;
+    result->seed_count = snapshot.seed_count;
+
+    if (snapshot.vertices.size() < 3 || snapshot.vector_field.data.empty())
+    {
+        result->message = "流线输入数据为空";
+        return result;
+    }
+
+    const int clamped_seed_count = std::max(1, snapshot.seed_count);
+    const float clamped_radius = std::max(snapshot.radius, 1e-6f);
+
+    float min_x = std::numeric_limits<float>::max();
+    float min_y = std::numeric_limits<float>::max();
+    float min_z = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float max_y = std::numeric_limits<float>::lowest();
+    float max_z = std::numeric_limits<float>::lowest();
+    for (size_t i = 0; i + 2 < snapshot.vertices.size(); i += 3)
+    {
+        min_x = std::min(min_x, snapshot.vertices[i + 0]);
+        min_y = std::min(min_y, snapshot.vertices[i + 1]);
+        min_z = std::min(min_z, snapshot.vertices[i + 2]);
+        max_x = std::max(max_x, snapshot.vertices[i + 0]);
+        max_y = std::max(max_y, snapshot.vertices[i + 1]);
+        max_z = std::max(max_z, snapshot.vertices[i + 2]);
+    }
+
+    std::vector<QVector3D> seed_positions;
+    seed_positions.reserve(static_cast<size_t>(clamped_seed_count));
+
+    std::mt19937 rng(42u);
+    std::uniform_real_distribution<float> dist01(0.0f, 1.0f);
+    constexpr float kPi = 3.14159265358979323846f;
+
+    const int max_attempts = clamped_seed_count * 16;
+    int attempts = 0;
+    while (static_cast<int>(seed_positions.size()) < clamped_seed_count &&
+           attempts < max_attempts && !cancel_requested.load(std::memory_order_relaxed))
+    {
+        ++attempts;
+        const float u = dist01(rng);
+        const float v = dist01(rng);
+        const float w = dist01(rng);
+
+        const float theta = 2.0f * kPi * u;
+        const float phi = std::acos(1.0f - 2.0f * v);
+        const float r = clamped_radius * std::cbrt(w);
+
+        QVector3D dir(std::sin(phi) * std::cos(theta), std::sin(phi) * std::sin(theta),
+                      std::cos(phi));
+        QVector3D candidate = snapshot.center + dir * r;
+
+        if (candidate.x() < min_x || candidate.x() > max_x || candidate.y() < min_y ||
+            candidate.y() > max_y || candidate.z() < min_z || candidate.z() > max_z)
+        {
+            continue;
+        }
+
+        seed_positions.push_back(candidate);
+    }
+
+    if (cancel_requested.load(std::memory_order_relaxed))
+    {
+        result->canceled = true;
+        result->message = "流线生成已取消";
+        return result;
+    }
+
+    if (seed_positions.empty())
+    {
+        seed_positions.push_back(snapshot.center);
+    }
+
+    Streamline::StreamlineGenerator generator;
+    Streamline::StreamlineParams params{.dt = 0.05f,
+                                        .max_length = 1800.0f,
+                                        .max_propagation_time = 0.0f,
+                                        .min_velocity = 0.005f,
+                                        .max_iterations = 32000,
+                                        .num_threads = 16,
+                                        .use_physical_velocity = true,
+                                        .enable_smoothing = true,
+                                        .smooth_iterations = 1};
+
+    MeshPart mesh_part;
+    mesh_part.vertices_ = snapshot.vertices;
+    mesh_part.cells_ = snapshot.cells;
+
+    auto streamlines = generator.generate(
+        seed_positions, &snapshot.vector_field, snapshot.vertices, params, &mesh_part,
+        [&](int completed, int total)
+        {
+            if (progress_callback)
+            {
+                progress_callback(completed, total);
+            }
+            return !cancel_requested.load(std::memory_order_relaxed);
+        });
+
+    if (cancel_requested.load(std::memory_order_relaxed))
+    {
+        result->canceled = true;
+        result->message = "流线生成已取消";
+        return result;
+    }
+
+    result->magnitude_min = std::numeric_limits<float>::max();
+    result->magnitude_max = std::numeric_limits<float>::lowest();
+
+    for (const auto& streamline : streamlines)
+    {
+        if (!streamline.valid || streamline.points.empty())
+        {
+            continue;
+        }
+
+        const uint32_t start_index = static_cast<uint32_t>(result->vertices.size() / 3);
+        const uint32_t point_count = static_cast<uint32_t>(streamline.points.size());
+
+        result->line_starts.push_back(start_index);
+        result->line_counts.push_back(point_count);
+
+        for (const auto& point : streamline.points)
+        {
+            result->vertices.push_back(point.x);
+            result->vertices.push_back(point.y);
+            result->vertices.push_back(point.z);
+            result->magnitudes.push_back(point.magnitude);
+            result->magnitude_min = std::min(result->magnitude_min, point.magnitude);
+            result->magnitude_max = std::max(result->magnitude_max, point.magnitude);
+        }
+    }
+
+    if (result->magnitudes.empty())
+    {
+        result->magnitude_min = 0.0f;
+        result->magnitude_max = 1.0f;
+    }
+
+    result->success = true;
+    result->message = QString("流线生成完成: %1 条").arg(result->line_counts.size());
+    return result;
+}
 } // namespace
 
 GLWidget::GLWidget(QWidget* parent) : QOpenGLWidget(parent)
 {
+}
+
+GLWidget::~GLWidget()
+{
+    cancelStreamlineGeneration();
+    if (streamline_generation_thread_)
+    {
+        streamline_generation_thread_->quit();
+        streamline_generation_thread_->wait();
+    }
 }
 void GLWidget::loadFile(const std::string& filename)
 {
@@ -656,10 +852,17 @@ void GLWidget::markStreamlineCacheDirty()
     streamline_cache_dirty_ = true;
 }
 
+void GLWidget::cancelStreamlineGeneration()
+{
+    streamline_generation_cancelled_.store(true, std::memory_order_relaxed);
+}
+
 void GLWidget::regenerateStreamlinesFromSeedSphere()
 {
     int current_step_index = case_data_.current_step_index_;
-    if (case_data_.steps_.empty() || case_data_.steps_[current_step_index].parts_.empty())
+    if (case_data_.steps_.empty() || current_step_index < 0 ||
+        current_step_index >= static_cast<int>(case_data_.steps_.size()) ||
+        case_data_.steps_[current_step_index].parts_.empty())
     {
         return;
     }
@@ -695,20 +898,105 @@ void GLWidget::regenerateStreamlinesFromSeedSphere()
         return;
     }
 
-    step.updateStreamlineBufferFromSphere(center, seed_sphere_radius_, streamline_seed_count_);
+    if (streamline_generation_thread_)
+    {
+        return;
+    }
 
-    cached_seed_center_ = center;
-    cached_seed_radius_ = seed_sphere_radius_;
-    cached_seed_count_ = streamline_seed_count_;
-    cached_vector_field_ = active_field;
-    cached_mesh_data_ptr_ = mesh_data_ptr;
-    cached_mesh_vertex_count_ = mesh_vertex_count;
-    has_streamline_cache_ = true;
-    streamline_cache_dirty_ = false;
+    auto snapshot = std::make_shared<StreamlineGenerationSnapshot>();
+    snapshot->vertices = step.parts_[0].vertices_;
+    snapshot->cells = step.parts_[0].cells_;
+    snapshot->vector_field = *active_field;
+    snapshot->field_name = QString::fromStdString(active_field->name_);
+    snapshot->center = center;
+    snapshot->radius = seed_sphere_radius_;
+    snapshot->seed_count = streamline_seed_count_;
 
-    makeCurrent();
-    renderer_.setMode(Mode::STREAMLINE);
-    update();
+    streamline_generation_cancelled_.store(false, std::memory_order_relaxed);
+    emit streamlineGenerationStarted();
+    emit streamlineGenerationProgress(0, std::max(1, snapshot->seed_count));
+
+    QThread* worker = QThread::create(
+        [this, snapshot]()
+        {
+            auto result = buildStreamlineBuffer(
+                *snapshot, streamline_generation_cancelled_,
+                [this](int completed, int total)
+                {
+                    emit streamlineGenerationProgress(completed, total);
+                    return true;
+                });
+
+            QMetaObject::invokeMethod(
+                this,
+                [this, result]()
+                {
+                    if (result->canceled)
+                    {
+                        emit streamlineGenerationFinished(false, true, result->message);
+                        return;
+                    }
+                    if (!result->success)
+                    {
+                        emit streamlineGenerationFinished(false, false, result->message);
+                        return;
+                    }
+
+                    const int current_step_index = case_data_.current_step_index_;
+                    if (case_data_.steps_.empty() || current_step_index < 0 ||
+                        current_step_index >= static_cast<int>(case_data_.steps_.size()) ||
+                        case_data_.steps_[current_step_index].parts_.empty())
+                    {
+                        emit streamlineGenerationFinished(false, false, "当前数据已失效");
+                        return;
+                    }
+
+                    auto& step = case_data_.steps_[current_step_index];
+                    Field* active_field = step.parts_[0].active_field_;
+                    if (!active_field || active_field->type_ != Type::VECTOR ||
+                        QString::fromStdString(active_field->name_) != result->field_name)
+                    {
+                        emit streamlineGenerationFinished(false, false,
+                                                          "当前矢量场已变化，丢弃本次流线结果");
+                        return;
+                    }
+
+                    step.gpu_data_.streamline_vertices_ = std::move(result->vertices);
+                    step.gpu_data_.streamline_magnitudes_ = std::move(result->magnitudes);
+                    step.gpu_data_.streamline_line_starts_ = std::move(result->line_starts);
+                    step.gpu_data_.streamline_line_counts_ = std::move(result->line_counts);
+                    step.gpu_data_.streamline_magnitude_min_ = result->magnitude_min;
+                    step.gpu_data_.streamline_magnitude_max_ = result->magnitude_max;
+
+                    cached_seed_center_ = result->center;
+                    cached_seed_radius_ = result->radius;
+                    cached_seed_count_ = result->seed_count;
+                    cached_vector_field_ = active_field;
+                    cached_mesh_data_ptr_ =
+                        step.parts_[0].vertices_.empty() ? nullptr : step.parts_[0].vertices_.data();
+                    cached_mesh_vertex_count_ = step.parts_[0].vertices_.size();
+                    has_streamline_cache_ = true;
+                    streamline_cache_dirty_ = false;
+
+                    makeCurrent();
+                    renderer_.setMode(Mode::STREAMLINE);
+                    update();
+                    emit streamlineGenerationFinished(true, false, result->message);
+                },
+                Qt::QueuedConnection);
+        });
+
+    streamline_generation_thread_ = worker;
+    connect(worker, &QThread::finished, this,
+            [this, worker]()
+            {
+                if (streamline_generation_thread_ == worker)
+                {
+                    streamline_generation_thread_ = nullptr;
+                }
+            });
+    connect(worker, &QThread::finished, worker, &QObject::deleteLater);
+    worker->start();
 }
 
 void GLWidget::updateLOD()

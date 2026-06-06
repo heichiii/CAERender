@@ -29,6 +29,7 @@ public:
     // Setter methods
     void setSeedSphereCenter(const QVector3D& center);
     void setAvailableVectorFields(const QStringList& fields);
+    void setGenerationRunning(bool running);
 
 signals:
     void streamlineVectorFieldChanged(const QString& field_name);
