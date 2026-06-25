@@ -1,5 +1,5 @@
 #pragma once
-#define DEBUG_MODE 1
+#define DEBUG_MODE 0
 
 // GPU 选择宏：定义使用哪种显卡
 // 使用方式：

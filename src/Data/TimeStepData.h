@@ -1,6 +1,7 @@
 #pragma once
 #include "MeshPart.h"
 #include "GPUData.h"
+#include <QVector3D>
 
 class TimeStepData
 {
@@ -15,6 +16,7 @@ public:
     Type activateField(const std::string& field_name);
     void updateScalarBuffer();
     void updateVectorBuffer();
-    void updateStreamlineBuffer(const std::string& field_name = "", int num_seeds = 100);
+    void updateStreamlineBuffer(int num_seeds);
+    void updateStreamlineBufferFromSphere(const QVector3D& center, float radius, int num_seeds);
 
 };

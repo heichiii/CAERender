@@ -1,15 +1,20 @@
 #pragma once
 
 #include "GLWidget.h"
+#include "PropertiesPanelWidget.h"
+#include "RenderOptionsWidget.h"
+#include "StreamlineOptionsWidget.h"
 #include <QMainWindow>
 #include <QMenu>
 #include <QAction>
 #include <QWidgetAction>
 #include <QDockWidget>
 #include <QLabel>
-#include <QComboBox>
-#include <QCheckBox>
+#include <QVector3D>
 #include <string>
+
+class QProgressDialog;
+
 class MainWindow : public QMainWindow
 {
     Q_OBJECT
@@ -23,32 +28,27 @@ private:
     void setupMenus();
     void updatePropertiesPanel();
     void updateFieldList();
-    void updateFieldOptions();
 
+    // UI components
     GLWidget* gl_widget_;
     QDockWidget* render_dock_;
+    QDockWidget* streamline_dock_;
     QDockWidget* properties_dock_;
+    RenderOptionsWidget* render_options_widget_;
+    PropertiesPanelWidget* properties_panel_widget_;
+    StreamlineOptionsWidget* streamline_options_widget_;
 
-
+    //Menu actions
     QAction* openfile_;
     QAction* opendir_;
     
-    // properties panel widgets
-    QLabel* file_path_label_;
-    QLabel* info_label_;
+    // Status bar labels
     QLabel* fps_label_;
     QLabel* lod_label_;
+    QProgressDialog* streamline_progress_dialog_ = nullptr;
+
     std::string current_file_path_;
-    
-    // render options widgets
-    QComboBox* mesh_render_mode_combo_;
-    QComboBox* field_combo_;
-    QWidget* field_options_widget_;
-    QLabel* color_scheme_label_;
-    QComboBox* color_scheme_combo_;
-    QLabel* vector_render_mode_label_;
-    QComboBox* vector_render_mode_combo_;
-    QCheckBox* lod_enable_checkbox_;
+
     
 private slots:
     void openFile();
@@ -60,5 +60,19 @@ private slots:
     void onFpsUpdated(float fps);
     void onLodLevelChanged(LODLevel level);
     void onLodCheckBoxToggled(bool checked);
+    void onSeedSphereCenterChanged(const QVector3D& center, bool valid);
+    void onStreamlineGenerationStarted();
+    void onStreamlineGenerationProgress(int completed, int total);
+    void onStreamlineGenerationFinished(bool success, bool canceled, const QString& message);
+    void onStreamlineLodEnabledChanged(bool checked);
+
+    // Streamline options signals
+    void onStreamlineVectorFieldChanged(const QString& field_name);
+    void onStreamlineRenderModeChanged(int mode);
+    void onSeedSphereRadiusChanged(double value);
+    void onSeedSphereCountChanged(int value);
+    void onSeedSphereOffsetChanged(const QVector3D& offset);
+    void onGenerateStreamlinesRequested();
+    void onTimeStepChanged(int step);
 
 };

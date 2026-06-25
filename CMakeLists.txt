@@ -23,6 +23,7 @@ find_package(VTK REQUIRED COMPONENTS
   FiltersGeometry
   IOLegacy
   IOXML
+  IOCGNSReader
 )
 
 file(GLOB_RECURSE SOURCES
@@ -41,6 +42,11 @@ add_executable(${PROJECT_NAME}
 target_include_directories(${PROJECT_NAME} PRIVATE
   ${CMAKE_CURRENT_SOURCE_DIR}/src
 )
+
+# 定义使用独立显卡的宏
+# target_compile_definitions(${PROJECT_NAME} PRIVATE PREFER_DISCRETE_GPU)
+# target_compile_definitions(${PROJECT_NAME} PRIVATE PREFER_INTEGRATED_GPU)
+
 target_link_libraries(${PROJECT_NAME} PRIVATE
   Qt6::Core
   Qt6::Gui
@@ -51,3 +57,8 @@ target_link_libraries(${PROJECT_NAME} PRIVATE
   OpenMP::OpenMP_CXX
   ${VTK_LIBRARIES}
 )
+
+
+
+
+

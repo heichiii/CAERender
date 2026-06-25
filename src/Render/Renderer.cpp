@@ -11,6 +11,9 @@
 
 namespace
 {
+constexpr float kMediumDetailRatio = 0.75f;
+constexpr float kLowDetailRatio = 0.55f;
+
 struct CellKey
 {
     int x;
@@ -162,9 +165,12 @@ Renderer::Renderer()
     : gpu_data_(nullptr), vbo_(QOpenGLBuffer::VertexBuffer), normal_(QOpenGLBuffer::VertexBuffer),
       ebo_(QOpenGLBuffer::IndexBuffer), arrow_pos_buffer_(QOpenGLBuffer::VertexBuffer),
       arrow_dir_buffer_(QOpenGLBuffer::VertexBuffer),
-      arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), mesh_render_mode_(MeshRenderMode::SOLID),
-      color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false),
-      vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
+        arrow_mag_buffer_(QOpenGLBuffer::VertexBuffer), pick_point_vbo_(QOpenGLBuffer::VertexBuffer),
+            seed_sphere_vbo_(QOpenGLBuffer::VertexBuffer),
+    mesh_render_mode_(MeshRenderMode::SOLID),
+            color_scheme_(ColorScheme::RAINBOW), use_field_coloring_(false), show_mesh_(true),
+            show_streamline_(true), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
+    //   vector_render_mode_(VectorRenderMode::ARROW), mode_(Mode::BASIC), lod_level_(LODLevel::HIGH)
 // render_vector_(false)
 {
 }
@@ -195,8 +201,34 @@ void Renderer::initialize()
         qWarning() << "Failed to create streamline shader program";
     }
 
+    pick_point_shader_program_ = std::make_unique<ShaderProgram>();
+    if (!pick_point_shader_program_->createFromFiles("../src/Shader/pick.vert", "../src/Shader/pick.frag"))
+    {
+        qWarning() << "Failed to create pick point shader program";
+    }
+
+    // pick_point_vao_.create();
+    // pick_point_vao_.bind();
+    // pick_point_vbo_.create();
+    // pick_point_vbo_.bind();
+    // const float init_pos[3] = {0.0f, 0.0f, 0.0f};
+    // pick_point_vbo_.allocate(init_pos, static_cast<int>(sizeof(init_pos)));
+    // glEnableVertexAttribArray(0);
+    // glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    // pick_point_vao_.release();
+
+    seed_sphere_vao_.create();
+    seed_sphere_vao_.bind();
+    seed_sphere_vbo_.create();
+    seed_sphere_vbo_.bind();
+    seed_sphere_vbo_.allocate(nullptr, 0);
+    glEnableVertexAttribArray(0);
+    glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
+    seed_sphere_vao_.release();
+
     glEnable(GL_DEPTH_TEST);
-    glDisable(GL_CULL_FACE); // 开启双面光照，禁用背面剔除
+    // 某些数据源三角面绕序不一致，先关闭背面剔除保证可见性。
+    glDisable(GL_CULL_FACE);
 }
 
 void Renderer::render(const Camera& camera)
@@ -206,20 +238,39 @@ void Renderer::render(const Camera& camera)
         return; // 没有数据可渲染
     }
 
+    // QPainter 等 2D 覆盖层可能修改 GL 状态，这里每帧仅恢复必要深度状态。
+    glEnable(GL_DEPTH_TEST);
+    glDepthMask(GL_TRUE);
+
     // 清空颜色和深度缓冲区
     glClearColor(0.2f, 0.2f, 0.2f, 1.0f);
     glClear(GL_COLOR_BUFFER_BIT | GL_DEPTH_BUFFER_BIT);
-    if (mode_ == Mode::BASIC)
-    {
-        renderBasic(camera);
-    }
-    else if (mode_ == Mode::ARROW)
+    
+    if(mode_ == Mode::ARROW)
     {
         renderArrows(camera);
     }
-    else if (mode_ == Mode::STREAMLINE)
+    else
     {
-        renderStreamlines(camera);
+        if (show_mesh_)
+        {
+            renderBasic(camera);
+        }
+        if (show_streamline_) //TODO: 流线生成完成
+        {
+            renderStreamlines(camera);
+        }
+    }
+    
+
+    // if (has_picked_point_)
+    // {
+    //     renderPickedPoint(camera);
+    // }
+
+    if (show_seed_sphere_)
+    {
+        renderSeedSphere(camera);
     }
 
 }
@@ -240,6 +291,7 @@ void Renderer::setMesh(const GPUData* p_gpu_data)
 void Renderer::setMeshRenderMode(MeshRenderMode mode)
 {
     mesh_render_mode_ = mode;
+    applyLODToIndexBuffer();
 }
 
 void Renderer::setColorScheme(ColorScheme scheme)
@@ -252,10 +304,20 @@ void Renderer::setUseFieldColoring(bool use)
     use_field_coloring_ = use;
 }
 
-void Renderer::setVectorRenderMode(VectorRenderMode mode)
+void Renderer::setMeshVisible(bool visible)
 {
-    vector_render_mode_ = mode;
+    show_mesh_ = visible;
 }
+
+void Renderer::setStreamlineVisible(bool visible)
+{
+    show_streamline_ = visible;
+}
+
+// void Renderer::setVectorRenderMode(VectorRenderMode mode)
+// {
+//     vector_render_mode_ = mode;
+// }
 
 void Renderer::setMode(Mode mode)
 {
@@ -282,45 +344,47 @@ void Renderer::updateBasicBuffers()
         qWarning() << "No GPU data available";
         return;
     }
-    if (vao_.isCreated())
+    // CPU 副本可能已在首次上传后释放；若已有可用 GPU 缓冲，直接复用。
+    if (gpu_data_->surface_vertices_.empty() || gpu_data_->indices_.empty())
     {
-        vao_.destroy();
+        if (vao_.isCreated() && active_lod_index_count_ > 0)
+        {
+            return;
+        }
+        qWarning() << "No mesh CPU data available for upload";
+        return;
     }
-    if (vbo_.isCreated())
+    // 复用已有 VAO/VBO（避免频繁 destroy/create），按需创建并绑定
+    if (!vao_.isCreated())
     {
-        vbo_.destroy();
+        vao_.create();
     }
-    if (normal_.isCreated())
-    {
-        normal_.destroy();
-    }
-    if (scalar_fields_.isCreated())
-    {
-        scalar_fields_.destroy();
-    }
-    if (ebo_.isCreated())
-    {
-        ebo_.destroy();
-    }
-
-    vao_.create();
     vao_.bind();
     // position
-    vbo_.create();
+    if (!vbo_.isCreated())
+    {
+        vbo_.create();
+    }
     vbo_.bind();
     vbo_.allocate(gpu_data_->surface_vertices_.data(),
                   static_cast<int>(gpu_data_->surface_vertices_.size() * sizeof(float)));
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     // normal
-    normal_.create();
+    if (!normal_.isCreated())
+    {
+        normal_.create();
+    }
     normal_.bind();
     normal_.allocate(gpu_data_->normals_.data(),
                      static_cast<int>(gpu_data_->normals_.size() * sizeof(float)));
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
     // scalar fields
-    scalar_fields_.create();
+    if (!scalar_fields_.isCreated())
+    {
+        scalar_fields_.create();
+    }
     scalar_fields_.bind();
     std::vector<float> default_scalar(gpu_data_->surface_vertices_.size() / 3, 0.0f);
     if (gpu_data_->scalar_fields_.empty())
@@ -341,18 +405,38 @@ void Renderer::updateBasicBuffers()
     rebuildLODIndices();
 
     // ebo
-    ebo_.create();
+    if (!ebo_.isCreated())
+    {
+        ebo_.create();
+    }
     ebo_.bind();
     applyLODToIndexBuffer();
+
+    // 已将顶点/法线/标量上传到显存，释放对应的 CPU-side 缓存以降低内存占用。
+    // 注意保留 indices_ 以便在需要时重新构建 LOD 或切换回 HIGH 级别。
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->surface_vertices_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->normals_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->scalar_fields_);
 
 
     vao_.release();
 }
 void Renderer::updateArrowBuffers()
 {
-    if (!gpu_data_ || gpu_data_->vector_field_positions_.empty())
+    if (!gpu_data_)
     {
         qWarning() << "No vector field data available";
+        return;
+    }
+
+    // CPU 副本可能已释放；若已有 GPU 端数据则直接复用。
+    if (gpu_data_->vector_field_positions_.empty())
+    {
+        if (arrow_vao_.isCreated() && arrow_instance_count_ > 0)
+        {
+            return;
+        }
+        qWarning() << "No vector field CPU data available for upload";
         return;
     }
 
@@ -362,28 +446,17 @@ void Renderer::updateArrowBuffers()
     qDebug() << "Vector magnitude range: [" << gpu_data_->vector_magnitude_min_ << ", "
              << gpu_data_->vector_magnitude_max_ << "]";
 
-    if (arrow_vao_.isCreated())
+    if (!arrow_vao_.isCreated())
     {
-        arrow_vao_.destroy();
+        arrow_vao_.create();
     }
-    if (arrow_pos_buffer_.isCreated())
-    {
-        arrow_pos_buffer_.destroy();
-    }
-    if (arrow_dir_buffer_.isCreated())
-    {
-        arrow_dir_buffer_.destroy();
-    }
-    if (arrow_mag_buffer_.isCreated())
-    {
-        arrow_mag_buffer_.destroy();
-    }
-
-    arrow_vao_.create();
     arrow_vao_.bind();
 
     // 位置缓冲
-    arrow_pos_buffer_.create();
+    if (!arrow_pos_buffer_.isCreated())
+    {
+        arrow_pos_buffer_.create();
+    }
     arrow_pos_buffer_.bind();
     arrow_pos_buffer_.allocate(
         gpu_data_->vector_field_positions_.data(),
@@ -392,7 +465,10 @@ void Renderer::updateArrowBuffers()
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
     // 方向缓冲
-    arrow_dir_buffer_.create();
+    if (!arrow_dir_buffer_.isCreated())
+    {
+        arrow_dir_buffer_.create();
+    }
     arrow_dir_buffer_.bind();
     arrow_dir_buffer_.allocate(
         gpu_data_->vector_field_directions_.data(),
@@ -401,7 +477,10 @@ void Renderer::updateArrowBuffers()
     glVertexAttribPointer(1, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
     // 幅值缓冲
-    arrow_mag_buffer_.create();
+    if (!arrow_mag_buffer_.isCreated())
+    {
+        arrow_mag_buffer_.create();
+    }
     arrow_mag_buffer_.bind();
     arrow_mag_buffer_.allocate(
         gpu_data_->vector_field_magnitudes_.data(),
@@ -410,12 +489,32 @@ void Renderer::updateArrowBuffers()
     glVertexAttribPointer(2, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), nullptr);
 
     arrow_vao_.release();
+
+    arrow_instance_count_ = num_vectors;
+    arrow_mag_min_cached_ = gpu_data_->vector_magnitude_min_;
+    arrow_mag_max_cached_ = gpu_data_->vector_magnitude_max_;
+
+    // 上传完成后释放 CPU-side 矢量场数据，避免占用过多 RAM
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_positions_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_directions_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->vector_field_magnitudes_);
 }
 void Renderer::updateStreamlineBuffers()
 {
-    if (!gpu_data_ || gpu_data_->streamline_vertices_.empty())
+    if (!gpu_data_)
     {
         qWarning() << "No streamline data available";
+        return;
+    }
+
+    // CPU 副本可能已释放；若已有 GPU 端数据则直接复用。
+    if (gpu_data_->streamline_vertices_.empty())
+    {
+        if (streamline_vao_.isCreated() && !streamline_count_array_.empty())
+        {
+            return;
+        }
+        qWarning() << "No streamline CPU data available for upload";
         return;
     }
 
@@ -425,43 +524,73 @@ void Renderer::updateStreamlineBuffers()
     qDebug() << "Streamline magnitude range: [" << gpu_data_->streamline_magnitude_min_
              << ", " << gpu_data_->streamline_magnitude_max_ << "]";
 
-    // 销毁旧缓冲
-    if (streamline_vao_.isCreated())
+    // 首次创建 VAO/VBO；后续复用并按需扩容，避免频繁 destroy/create。
+    if (!streamline_vao_.isCreated())
     {
-        streamline_vao_.destroy();
+        streamline_vao_.create();
     }
-    if (streamline_pos_buffer_.isCreated())
+    if (!streamline_pos_buffer_.isCreated())
     {
-        streamline_pos_buffer_.destroy();
+        streamline_pos_buffer_.create();
     }
-    if (streamline_mag_buffer_.isCreated())
+    if (!streamline_mag_buffer_.isCreated())
     {
-        streamline_mag_buffer_.destroy();
+        streamline_mag_buffer_.create();
     }
 
-    // 创建顶点数组对象
-    streamline_vao_.create();
     streamline_vao_.bind();
 
-    // 位置缓冲
-    streamline_pos_buffer_.create();
+    const size_t pos_size_bytes = gpu_data_->streamline_vertices_.size() * sizeof(float);
     streamline_pos_buffer_.bind();
-    streamline_pos_buffer_.allocate(gpu_data_->streamline_vertices_.data(),
-                                    static_cast<int>(gpu_data_->streamline_vertices_.size() * sizeof(float)));
+    if (pos_size_bytes > streamline_pos_capacity_bytes_)
+    {
+        streamline_pos_buffer_.allocate(nullptr, static_cast<int>(pos_size_bytes));
+        streamline_pos_capacity_bytes_ = pos_size_bytes;
+    }
+    if (pos_size_bytes > 0)
+    {
+        streamline_pos_buffer_.write(0, gpu_data_->streamline_vertices_.data(),
+                                     static_cast<int>(pos_size_bytes));
+    }
     glEnableVertexAttribArray(0);
     glVertexAttribPointer(0, 3, GL_FLOAT, GL_FALSE, 3 * sizeof(float), nullptr);
 
-    // 幅值缓冲
-    streamline_mag_buffer_.create();
+    const size_t mag_size_bytes = gpu_data_->streamline_magnitudes_.size() * sizeof(float);
     streamline_mag_buffer_.bind();
-    streamline_mag_buffer_.allocate(gpu_data_->streamline_magnitudes_.data(),
-                                    static_cast<int>(gpu_data_->streamline_magnitudes_.size() * sizeof(float)));
+    if (mag_size_bytes > streamline_mag_capacity_bytes_)
+    {
+        streamline_mag_buffer_.allocate(nullptr, static_cast<int>(mag_size_bytes));
+        streamline_mag_capacity_bytes_ = mag_size_bytes;
+    }
+    if (mag_size_bytes > 0)
+    {
+        streamline_mag_buffer_.write(0, gpu_data_->streamline_magnitudes_.data(),
+                                     static_cast<int>(mag_size_bytes));
+    }
     glEnableVertexAttribArray(1);
     glVertexAttribPointer(1, 1, GL_FLOAT, GL_FALSE, 1 * sizeof(float), nullptr);
 
     streamline_vao_.release();
 
+    // 批绘制参数在数据更新时构建，避免每帧分配和填充。
+    const size_t num_streamlines = gpu_data_->streamline_line_counts_.size();
+    streamline_first_array_.resize(num_streamlines);
+    streamline_count_array_.resize(num_streamlines);
+    for (size_t i = 0; i < num_streamlines; ++i)
+    {
+        streamline_first_array_[i] = static_cast<GLint>(gpu_data_->streamline_line_starts_[i]);
+        streamline_count_array_[i] = static_cast<GLsizei>(gpu_data_->streamline_line_counts_[i]);
+    }
+
+    streamline_mag_min_cached_ = gpu_data_->streamline_magnitude_min_;
+    streamline_mag_max_cached_ = gpu_data_->streamline_magnitude_max_;
+
     qDebug() << "Streamline buffers updated successfully";
+    // 上传完流线数据并构建批量绘制参数后，释放 CPU-side 流线缓存
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->streamline_vertices_);
+    // std::vector<float>().swap(const_cast<GPUData*>(gpu_data_)->streamline_magnitudes_);
+    // std::vector<uint32_t>().swap(const_cast<GPUData*>(gpu_data_)->streamline_line_starts_);
+    // std::vector<uint32_t>().swap(const_cast<GPUData*>(gpu_data_)->streamline_line_counts_);
 }
 void Renderer::renderBasic(const Camera& camera)
 {
@@ -527,7 +656,7 @@ void Renderer::renderArrows(const Camera& camera)
         return;
     }
 
-    size_t num_vectors = gpu_data_->vector_field_positions_.size() / 3;
+    size_t num_vectors = arrow_instance_count_;
     if (num_vectors == 0)
     {
         return;
@@ -552,12 +681,26 @@ void Renderer::renderArrows(const Camera& camera)
     arrow_shader_program_->getProgram()->setUniformValue("u_color_scheme",
                                                          static_cast<int>(color_scheme_));
     arrow_shader_program_->getProgram()->setUniformValue("u_vector_magnitude_min",
-                                                         gpu_data_->vector_magnitude_min_);
+                                                         arrow_mag_min_cached_);
     arrow_shader_program_->getProgram()->setUniformValue("u_vector_magnitude_max",
-                                                         gpu_data_->vector_magnitude_max_);
+                                                         arrow_mag_max_cached_);
+
+    GLsizei draw_count = static_cast<GLsizei>(num_vectors);
+    if (lod_level_ == LODLevel::MEDIUM)
+    {
+        draw_count = std::max<GLsizei>(1, static_cast<GLsizei>(
+                                           std::ceil(static_cast<float>(draw_count) *
+                                                     kMediumDetailRatio)));
+    }
+    else if (lod_level_ == LODLevel::LOW)
+    {
+        draw_count = std::max<GLsizei>(1, static_cast<GLsizei>(
+                                           std::ceil(static_cast<float>(draw_count) *
+                                                     kLowDetailRatio)));
+    }
 
     arrow_vao_.bind();
-    glDrawArrays(GL_POINTS, 0, static_cast<GLsizei>(num_vectors));
+    glDrawArrays(GL_POINTS, 0, draw_count);
     arrow_vao_.release();
 
     arrow_shader_program_->release();
@@ -565,9 +708,9 @@ void Renderer::renderArrows(const Camera& camera)
 
 void Renderer::renderStreamlines(const Camera& camera)
 {
-    if (!gpu_data_ || gpu_data_->streamline_vertices_.empty() || gpu_data_->streamline_line_counts_.empty())
+    if (!gpu_data_ || streamline_count_array_.empty())
     {
-        qWarning() << "No streamline data to render";
+        // qWarning() << "No streamline data to render";
         return;
     }
 
@@ -590,50 +733,40 @@ void Renderer::renderStreamlines(const Camera& camera)
     streamline_shader_program_->getProgram()->setUniformValue("u_view", view);
     streamline_shader_program_->getProgram()->setUniformValue("u_projection", projection);
 
-    streamline_shader_program_->getProgram()->setUniformValue("u_light_pos", QVector3D(5.0f, 5.0f, 15.0f));
-    streamline_shader_program_->getProgram()->setUniformValue("u_view_pos", QVector3D(0.0f, 0.0f, 10.0f));
-
     streamline_shader_program_->getProgram()->setUniformValue("u_color_scheme", static_cast<int>(color_scheme_));
-    streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_min", gpu_data_->streamline_magnitude_min_);
-    streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_max", gpu_data_->streamline_magnitude_max_);
+    streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_min", streamline_mag_min_cached_);
+    streamline_shader_program_->getProgram()->setUniformValue("u_magnitude_max", streamline_mag_max_cached_);
 
     // 绑定VAO
     streamline_vao_.bind();
 
-    // 绑定线条宽度
-    glLineWidth(2.0f);
-    glEnable(GL_LINE_SMOOTH);
-    glHint(GL_LINE_SMOOTH_HINT, GL_NICEST);
+    // 线平滑在大规模折线场景下开销较高，默认关闭以保证帧率。
+    glLineWidth(1.0f);
 
     // 使用 glMultiDrawArrays 批量绘制所有流线（性能更优）
-    size_t num_streamlines = gpu_data_->streamline_line_counts_.size();
+    size_t num_streamlines = streamline_count_array_.size();
+    if (lod_level_ == LODLevel::MEDIUM && num_streamlines > 1)
+    {
+        num_streamlines = std::max<size_t>(1, static_cast<size_t>(
+                                               std::ceil(static_cast<float>(num_streamlines) *
+                                                         kMediumDetailRatio)));
+    }
+    else if (lod_level_ == LODLevel::LOW && num_streamlines > 1)
+    {
+        num_streamlines = std::max<size_t>(1, static_cast<size_t>(
+                                               std::ceil(static_cast<float>(num_streamlines) *
+                                                         kLowDetailRatio)));
+    }
+
     if (num_streamlines > 0)
     {
-        // 转换数据类型以适应 glMultiDrawArrays 的参数要求
-        std::vector<GLint> first_array;
-        std::vector<GLsizei> count_array;
-
-        first_array.reserve(num_streamlines);
-        count_array.reserve(num_streamlines);
-
-        for (size_t i = 0; i < num_streamlines; ++i)
-        {
-            first_array.push_back(static_cast<GLint>(gpu_data_->streamline_line_starts_[i]));
-            count_array.push_back(static_cast<GLsizei>(gpu_data_->streamline_line_counts_[i]));
-        }
-
         // 单次调用绘制所有流线（相比循环调用要快）
-        glMultiDrawArrays(GL_LINE_STRIP, first_array.data(), count_array.data(), 
+        glMultiDrawArrays(GL_LINE_STRIP, streamline_first_array_.data(), streamline_count_array_.data(),
                          static_cast<GLsizei>(num_streamlines));
     }
 
-    glDisable(GL_LINE_SMOOTH);
-    glLineWidth(1.0f);
-
     streamline_vao_.release();
     streamline_shader_program_->release();
-
-    qDebug() << "Rendered" << gpu_data_->streamline_line_counts_.size() << "streamlines";
 }
 
 void Renderer::setLODLevel(LODLevel level)
@@ -651,7 +784,6 @@ void Renderer::rebuildLODIndices()
 {
     if (!gpu_data_ || gpu_data_->indices_.empty())
     {
-        lod_high_indices_.clear();
         lod_medium_indices_.clear();
         lod_low_indices_.clear();
         active_lod_index_count_ = 0;
@@ -659,13 +791,12 @@ void Renderer::rebuildLODIndices()
         return;
     }
 
-    lod_high_indices_ = gpu_data_->indices_;
-    lod_medium_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 36);
-    lod_low_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 20);
+    lod_medium_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 52);
+    lod_low_indices_ = buildClusteredIndices(gpu_data_->surface_vertices_, gpu_data_->indices_, 40);
 
-    if (lod_medium_indices_.size() > lod_high_indices_.size())
+    if (lod_medium_indices_.size() > gpu_data_->indices_.size())
     {
-        lod_medium_indices_ = lod_high_indices_;
+        lod_medium_indices_ = gpu_data_->indices_;
     }
     if (lod_low_indices_.size() > lod_medium_indices_.size())
     {
@@ -682,11 +813,11 @@ void Renderer::applyLODToIndexBuffer()
         return;
     }
 
-    const std::vector<uint32_t>* activeIndices = &lod_high_indices_;
+    const std::vector<uint32_t>* activeIndices = &gpu_data_->indices_;
     switch (lod_level_)
     {
         case LODLevel::HIGH:
-            activeIndices = &lod_high_indices_;
+            activeIndices = &gpu_data_->indices_;
             break;
         case LODLevel::MEDIUM:
             activeIndices = &lod_medium_indices_;
@@ -695,13 +826,13 @@ void Renderer::applyLODToIndexBuffer()
             activeIndices = &lod_low_indices_;
             break;
         default:
-            activeIndices = &lod_high_indices_;
+            activeIndices = &gpu_data_->indices_;
             break;
     }
 
     if (activeIndices->empty())
     {
-        activeIndices = &lod_high_indices_;
+        activeIndices = &gpu_data_->indices_;
     }
 
     active_lod_index_count_ = activeIndices->size();
@@ -728,4 +859,186 @@ void Renderer::applyLODToIndexBuffer()
     }
     
     vao_.release();
+}
+
+void Renderer::setPickedPoint(const QVector3D& point_obj)
+{
+    picked_point_obj_ = point_obj;
+    has_picked_point_ = true;
+
+    if (!pick_point_vbo_.isCreated())
+        return;
+
+    const float pos[3] = {point_obj.x(), point_obj.y(), point_obj.z()};
+    pick_point_vao_.bind();
+    pick_point_vbo_.bind();
+    pick_point_vbo_.write(0, pos, static_cast<int>(sizeof(pos)));
+    pick_point_vao_.release();
+}
+
+void Renderer::clearPickedPoint()
+{
+    has_picked_point_ = false;
+}
+
+void Renderer::setSeedSphere(const QVector3D& center_obj, float radius, bool visible)
+{
+    show_seed_sphere_ = visible;
+    if (!visible)
+    {
+        return;
+    }
+
+    const float clamped_radius = std::max(radius, 1e-6f);
+    constexpr int kSegments = 72;
+    constexpr float kPi = 3.14159265358979323846f;
+
+    std::vector<float> vertices;
+    vertices.reserve(static_cast<size_t>(kSegments) * 3 * 3);
+
+    for (int i = 0; i < kSegments; ++i)
+    {
+        const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(kSegments);
+        const float c = std::cos(a);
+        const float s = std::sin(a);
+
+        vertices.push_back(center_obj.x() + clamped_radius * c);
+        vertices.push_back(center_obj.y() + clamped_radius * s);
+        vertices.push_back(center_obj.z());
+    }
+    for (int i = 0; i < kSegments; ++i)
+    {
+        const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(kSegments);
+        const float c = std::cos(a);
+        const float s = std::sin(a);
+
+        vertices.push_back(center_obj.x());
+        vertices.push_back(center_obj.y() + clamped_radius * c);
+        vertices.push_back(center_obj.z() + clamped_radius * s);
+    }
+    for (int i = 0; i < kSegments; ++i)
+    {
+        const float a = 2.0f * kPi * static_cast<float>(i) / static_cast<float>(kSegments);
+        const float c = std::cos(a);
+        const float s = std::sin(a);
+
+        vertices.push_back(center_obj.x() + clamped_radius * c);
+        vertices.push_back(center_obj.y());
+        vertices.push_back(center_obj.z() + clamped_radius * s);
+    }
+
+    seed_sphere_vertex_count_ = static_cast<int>(vertices.size() / 3);
+
+    if (!seed_sphere_vbo_.isCreated())
+    {
+        return;
+    }
+
+    seed_sphere_vao_.bind();
+    seed_sphere_vbo_.bind();
+    seed_sphere_vbo_.allocate(vertices.data(), static_cast<int>(vertices.size() * sizeof(float)));
+    seed_sphere_vao_.release();
+}
+
+void Renderer::clearSeedSphere()
+{
+    show_seed_sphere_ = false;
+}
+
+bool Renderer::getColorbarRange(float& out_min, float& out_max, ColorScheme& out_scheme) const
+{
+    if (!gpu_data_)
+    {
+        return false;
+    }
+
+    out_scheme = color_scheme_;
+
+    if (mode_ == Mode::BASIC)
+    {
+        if (!use_field_coloring_ || gpu_data_->scalar_fields_.empty())
+        {
+            return false;
+        }
+        out_min = gpu_data_->scalar_min_;
+        out_max = gpu_data_->scalar_max_;
+        return true;
+    }
+
+    if (mode_ == Mode::ARROW)
+    {
+        if (gpu_data_->vector_field_magnitudes_.empty())
+        {
+            return false;
+        }
+        out_min = gpu_data_->vector_magnitude_min_;
+        out_max = gpu_data_->vector_magnitude_max_;
+        return true;
+    }
+
+    if (mode_ == Mode::STREAMLINE)
+    {
+        if (gpu_data_->streamline_magnitudes_.empty())
+        {
+            return false;
+        }
+        out_min = gpu_data_->streamline_magnitude_min_;
+        out_max = gpu_data_->streamline_magnitude_max_;
+        return true;
+    }
+
+    return false;
+}
+
+void Renderer::renderPickedPoint(const Camera& camera)
+{
+    if (!pick_point_shader_program_ || !pick_point_shader_program_->getProgram() ||
+        !pick_point_vao_.isCreated())
+    {
+        return;
+    }
+
+    pick_point_shader_program_->bind();
+    pick_point_shader_program_->getProgram()->setUniformValue("u_model", camera.getModelMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_view", camera.getViewMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_projection", camera.getProjectionMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_point_size", 12.0f);
+    pick_point_shader_program_->getProgram()->setUniformValue("u_color", QVector3D(1.0f, 0.1f, 0.1f));
+
+    glEnable(GL_PROGRAM_POINT_SIZE);
+    pick_point_vao_.bind();
+    glDrawArrays(GL_POINTS, 0, 1);
+    pick_point_vao_.release();
+    glDisable(GL_PROGRAM_POINT_SIZE);
+
+    pick_point_shader_program_->release();
+}
+
+void Renderer::renderSeedSphere(const Camera& camera)
+{
+    if (!pick_point_shader_program_ || !pick_point_shader_program_->getProgram() ||
+        !seed_sphere_vao_.isCreated() || seed_sphere_vertex_count_ <= 0)
+    {
+        return;
+    }
+
+    constexpr int kSegments = 72;
+
+    pick_point_shader_program_->bind();
+    pick_point_shader_program_->getProgram()->setUniformValue("u_model", camera.getModelMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_view", camera.getViewMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_projection", camera.getProjectionMatrix());
+    pick_point_shader_program_->getProgram()->setUniformValue("u_point_size", 1.0f);
+    pick_point_shader_program_->getProgram()->setUniformValue("u_color", QVector3D(1.0f, 0.8f, 0.1f));
+
+    seed_sphere_vao_.bind();
+    glLineWidth(1.5f);
+    for (int i = 0; i < 3; ++i)
+    {
+        glDrawArrays(GL_LINE_LOOP, i * kSegments, kSegments);
+    }
+    glLineWidth(1.0f);
+    seed_sphere_vao_.release();
+
+    pick_point_shader_program_->release();
 }

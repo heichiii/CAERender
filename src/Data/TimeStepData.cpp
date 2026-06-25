@@ -3,11 +3,29 @@
 #include "Algorithm/StreamlineGenerator.h"
 #include <cmath>
 #include <limits>
+#include <random>
 #ifdef emit
 #undef emit
 #endif
 #include <execution>
 #include <iostream>
+
+namespace
+{
+bool canReleaseFieldMaps(const MeshPart& part)
+{
+    // 如果只有 0/1 个字段，则不存在“切换字段”需求，可回收映射内存。
+    const size_t total_fields = part.point_fields_.size() + part.cell_fields_.size();
+    return total_fields <= 1;
+}
+
+template <typename T>
+void releaseVectorMemory(std::vector<T>& v)
+{
+    std::vector<T>().swap(v);
+}
+} // namespace
+
 void TimeStepData::generateGPUData()
 {
     PROFILE_CODE
@@ -35,6 +53,8 @@ void TimeStepData::generateGPUData()
     gpu_data_.scalar_fields_.clear();
     gpu_data_.normals_.clear();
     gpu_data_.indices_.clear();
+    parts_[0].vertex_to_point_map_.clear();
+    parts_[0].vertex_to_cell_map_.clear();
 
     // 表面提取：提取只出现一次的边界面
     std::sort(std::execution::par_unseq, parts_[0].faces_.begin(),
@@ -150,6 +170,9 @@ void TimeStepData::generateGPUData()
 
     std::cout << "[TimeStepData::generateGPUData] Generated " << (gpu_data_.indices_.size() / 3) 
               << " valid triangles, skipped " << skipped_triangles << " invalid triangles" << std::endl;
+
+    // 表面三角数据已进入 gpu_data_，faces_ 后续不再参与渲染主路径，释放其内存。
+    releaseVectorMemory(parts_[0].faces_);
 }
 
 Type TimeStepData::activateField(const std::string& field_name)
@@ -273,6 +296,12 @@ void TimeStepData::updateScalarBuffer()
             }
         }
     }
+
+    if (canReleaseFieldMaps(parts_[0]))
+    {
+        releaseVectorMemory(parts_[0].vertex_to_point_map_);
+        releaseVectorMemory(parts_[0].vertex_to_cell_map_);
+    }
 }
 
 void TimeStepData::updateVectorBuffer()
@@ -364,92 +393,178 @@ void TimeStepData::updateVectorBuffer()
         gpu_data_.vector_field_magnitudes_.push_back(magnitude);
     }
 
+    if (gpu_data_.vector_field_magnitudes_.empty())
+    {
+        gpu_data_.vector_magnitude_min_ = 0.0f;
+        gpu_data_.vector_magnitude_max_ = 1.0f;
+        gpu_data_.scalar_fields_.clear();
+        gpu_data_.scalar_min_ = 0.0f;
+        gpu_data_.scalar_max_ = 1.0f;
+        return;
+    }
+
     gpu_data_.vector_magnitude_min_ = min_magnitude;
     gpu_data_.vector_magnitude_max_ = max_magnitude;
 
+    // Magnitude 模式复用基础网格着色通道：
+    // 将矢量幅值写入 scalar_fields_，这样 BASIC 模式可直接按三种网格模式显示并用幅值着色。
+    gpu_data_.scalar_fields_ = gpu_data_.vector_field_magnitudes_;
+    gpu_data_.scalar_min_ = gpu_data_.vector_magnitude_min_;
+    gpu_data_.scalar_max_ = gpu_data_.vector_magnitude_max_;
+
+    if (canReleaseFieldMaps(parts_[0]))
+    {
+        releaseVectorMemory(parts_[0].vertex_to_point_map_);
+        releaseVectorMemory(parts_[0].vertex_to_cell_map_);
+    }
+
    
 
-    if (vector_field->location_ == Location::POINT)
-    {
-        std::cout
-            << "  → POINT data: 每个顶点从对应的点获取矢量值，三角形的三个顶点可能有不同的矢量方向"
-            << std::endl;
-    }
-    else if (vector_field->location_ == Location::CELL)
-    {
-        std::cout
-            << "  → CELL data: 每个顶点从所属单元获取矢量值，三角形的三个顶点将显示相同的矢量方向"
-            << std::endl;
-    }
+    // if (vector_field->location_ == Location::POINT)
+    // {
+    //     std::cout
+    //         << "  → POINT data: 每个顶点从对应的点获取矢量值，三角形的三个顶点可能有不同的矢量方向"
+    //         << std::endl;
+    // }
+    // else if (vector_field->location_ == Location::CELL)
+    // {
+    //     std::cout
+    //         << "  → CELL data: 每个顶点从所属单元获取矢量值，三角形的三个顶点将显示相同的矢量方向"
+    //         << std::endl;
+    // }
 }
 
-void TimeStepData::updateStreamlineBuffer(const std::string& field_name, int num_seeds)
+void TimeStepData::updateStreamlineBuffer(int num_seeds)
 {
-    if (parts_.empty()) {
-        std::cerr << "[TimeStepData::updateStreamlineBuffer] No mesh parts available." << std::endl;
+    if (parts_.empty() || parts_[0].vertices_.size() < 3)
+    {
+        std::cerr << "[TimeStepData::updateStreamlineBuffer] No mesh data." << std::endl;
+        return;
+    }
+
+    const auto& vertices = parts_[0].vertices_;
+    float min_x = std::numeric_limits<float>::max();
+    float min_y = std::numeric_limits<float>::max();
+    float min_z = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float max_y = std::numeric_limits<float>::lowest();
+    float max_z = std::numeric_limits<float>::lowest();
+
+    for (size_t i = 0; i + 2 < vertices.size(); i += 3)
+    {
+        min_x = std::min(min_x, vertices[i + 0]);
+        min_y = std::min(min_y, vertices[i + 1]);
+        min_z = std::min(min_z, vertices[i + 2]);
+        max_x = std::max(max_x, vertices[i + 0]);
+        max_y = std::max(max_y, vertices[i + 1]);
+        max_z = std::max(max_z, vertices[i + 2]);
+    }
+
+    const QVector3D center((min_x + max_x) * 0.5f, (min_y + max_y) * 0.5f, (min_z + max_z) * 0.5f);
+    const float dx = max_x - min_x;
+    const float dy = max_y - min_y;
+    const float dz = max_z - min_z;
+    const float diag = std::sqrt(dx * dx + dy * dy + dz * dz);
+    const float radius = std::max(diag * 0.1f, 1e-4f);
+
+    updateStreamlineBufferFromSphere(center, radius, num_seeds);
+}
+
+void TimeStepData::updateStreamlineBufferFromSphere(const QVector3D& center, float radius, int num_seeds)
+{
+    if (parts_.empty())
+    {
+        std::cerr << "[TimeStepData::updateStreamlineBufferFromSphere] No mesh parts available." << std::endl;
         return;
     }
 
     MeshPart& part = parts_[0];
-
-    // 查找矢量场
-    Field* vector_field = nullptr;
-    for (auto& field : part.cell_fields_) {
-        if ((field_name.empty() && field.type_ == Type::VECTOR) ||
-            (!field_name.empty() && field.name_ == field_name && field.type_ == Type::VECTOR)) {
-            vector_field = &field;
-            break;
-        }
+    Field* vector_field = part.active_field_;
+    if (!vector_field || vector_field->type_ != Type::VECTOR)
+    {
+        std::cerr << "[TimeStepData::updateStreamlineBufferFromSphere] Active vector field not available." << std::endl;
+        return;
     }
-
-    if (!vector_field) {
-        std::cerr << "[TimeStepData::updateStreamlineBuffer] Vector field not found: " << field_name << std::endl;
+    if (vector_field->data.empty() || part.vertices_.size() < 3)
+    {
+        std::cerr << "[TimeStepData::updateStreamlineBufferFromSphere] Input data is empty." << std::endl;
         return;
     }
 
-    if (vector_field->data.empty()) {
-        std::cerr << "[TimeStepData::updateStreamlineBuffer] Vector field data is empty." << std::endl;
-        return;
+    const int clamped_seed_count = std::max(1, num_seeds);
+    const float clamped_radius = std::max(radius, 1e-6f);
+
+    float min_x = std::numeric_limits<float>::max();
+    float min_y = std::numeric_limits<float>::max();
+    float min_z = std::numeric_limits<float>::max();
+    float max_x = std::numeric_limits<float>::lowest();
+    float max_y = std::numeric_limits<float>::lowest();
+    float max_z = std::numeric_limits<float>::lowest();
+    for (size_t i = 0; i + 2 < part.vertices_.size(); i += 3)
+    {
+        min_x = std::min(min_x, part.vertices_[i + 0]);
+        min_y = std::min(min_y, part.vertices_[i + 1]);
+        min_z = std::min(min_z, part.vertices_[i + 2]);
+        max_x = std::max(max_x, part.vertices_[i + 0]);
+        max_y = std::max(max_y, part.vertices_[i + 1]);
+        max_z = std::max(max_z, part.vertices_[i + 2]);
     }
 
-    std::cout << "[TimeStepData::updateStreamlineBuffer] Generating streamlines from field: " << vector_field->name_ << std::endl;
-
-    // 生成种子点（均匀采样网格顶点）
     std::vector<QVector3D> seed_positions;
-    seed_positions.reserve(num_seeds);
+    seed_positions.reserve(static_cast<size_t>(clamped_seed_count));
 
-    if (part.vertices_.size() >= 3) {
-        int num_vertices = part.vertices_.size() / 3;
-        int step = std::max(1, num_vertices / num_seeds);
+    std::mt19937 rng(42u);
+    std::uniform_real_distribution<float> dist01(0.0f, 1.0f);
+    constexpr float kPi = 3.14159265358979323846f;
 
-        for (int i = 0; i < num_vertices; i += step) {
-            if (seed_positions.size() >= static_cast<size_t>(num_seeds)) break;
-            
-            QVector3D seed(
-                part.vertices_[i * 3],
-                part.vertices_[i * 3 + 1],
-                part.vertices_[i * 3 + 2]
-            );
-            seed_positions.push_back(seed);
+    const int max_attempts = clamped_seed_count * 16;
+    int attempts = 0;
+    while (static_cast<int>(seed_positions.size()) < clamped_seed_count && attempts < max_attempts)
+    {
+        ++attempts;
+        const float u = dist01(rng);
+        const float v = dist01(rng);
+        const float w = dist01(rng);
+
+        const float theta = 2.0f * kPi * u;
+        const float phi = std::acos(1.0f - 2.0f * v);
+        const float r = clamped_radius * std::cbrt(w);
+
+        QVector3D dir(std::sin(phi) * std::cos(theta), std::sin(phi) * std::sin(theta), std::cos(phi));
+        QVector3D candidate = center + dir * r;
+
+        if (candidate.x() < min_x || candidate.x() > max_x || candidate.y() < min_y ||
+            candidate.y() > max_y || candidate.z() < min_z || candidate.z() > max_z)
+        {
+            continue;
         }
+
+        seed_positions.push_back(candidate);
     }
 
-    std::cout << "[TimeStepData::updateStreamlineBuffer] Generated " << seed_positions.size() << " seed positions" << std::endl;
+    if (seed_positions.empty())
+    {
+        seed_positions.push_back(center);
+    }
 
-    // 使用流线生成器
+    std::cout << "[TimeStepData::updateStreamlineBufferFromSphere] center=(" << center.x() << ", "
+              << center.y() << ", " << center.z() << "), radius=" << clamped_radius
+              << ", seeds=" << seed_positions.size() << std::endl;
+
     Streamline::StreamlineGenerator generator;
-    Streamline::StreamlineParams params;
-    params.dt = 0.05f;
-    params.max_length = 100.0f;
-    params.min_velocity = 0.001f;
-    params.max_iterations = 2000;
-    params.num_threads = 4;
+    Streamline::StreamlineParams params{.dt = 0.05f,
+                                        .max_length = 1800.0f,
+                                        .max_propagation_time = 0.0f,
+                                        .min_velocity = 0.005f,
+                                        .max_iterations = 32000,
+                                        .num_threads = 16,
+                                        .use_physical_velocity = true,
+                                        .enable_smoothing = true,
+                                        .smooth_iterations = 1};
 
-    auto streamlines = generator.generate(seed_positions, vector_field, part.vertices_, params);
+    auto streamlines =
+        generator.generate(seed_positions, vector_field, part.vertices_, params, &part);
 
-    std::cout << "[TimeStepData::updateStreamlineBuffer] Generated " << streamlines.size() << " streamlines" << std::endl;
-
-    // 将流线数据转换为GPU格式
     gpu_data_.streamline_vertices_.clear();
     gpu_data_.streamline_magnitudes_.clear();
     gpu_data_.streamline_line_starts_.clear();
@@ -458,32 +573,40 @@ void TimeStepData::updateStreamlineBuffer(const std::string& field_name, int num
     gpu_data_.streamline_magnitude_min_ = std::numeric_limits<float>::max();
     gpu_data_.streamline_magnitude_max_ = std::numeric_limits<float>::lowest();
 
-    for (const auto& streamline : streamlines) {
-        if (!streamline.valid || streamline.points.empty()) {
+    for (const auto& streamline : streamlines)
+    {
+        if (!streamline.valid || streamline.points.empty())
+        {
             continue;
         }
 
-        uint32_t start_index = gpu_data_.streamline_vertices_.size() / 3;
-        uint32_t point_count = streamline.points.size();
+        const uint32_t start_index = static_cast<uint32_t>(gpu_data_.streamline_vertices_.size() / 3);
+        const uint32_t point_count = static_cast<uint32_t>(streamline.points.size());
 
         gpu_data_.streamline_line_starts_.push_back(start_index);
         gpu_data_.streamline_line_counts_.push_back(point_count);
 
-        for (const auto& point : streamline.points) {
+        for (const auto& point : streamline.points)
+        {
             gpu_data_.streamline_vertices_.push_back(point.x);
             gpu_data_.streamline_vertices_.push_back(point.y);
             gpu_data_.streamline_vertices_.push_back(point.z);
 
             gpu_data_.streamline_magnitudes_.push_back(point.magnitude);
-
-            gpu_data_.streamline_magnitude_min_ = std::min(gpu_data_.streamline_magnitude_min_, point.magnitude);
-            gpu_data_.streamline_magnitude_max_ = std::max(gpu_data_.streamline_magnitude_max_, point.magnitude);
+            gpu_data_.streamline_magnitude_min_ =
+                std::min(gpu_data_.streamline_magnitude_min_, point.magnitude);
+            gpu_data_.streamline_magnitude_max_ =
+                std::max(gpu_data_.streamline_magnitude_max_, point.magnitude);
         }
     }
 
-    std::cout << "[TimeStepData::updateStreamlineBuffer] Streamline buffer updated:" << std::endl;
-    std::cout << "  - Total vertices: " << gpu_data_.streamline_vertices_.size() / 3 << std::endl;
-    std::cout << "  - Total streamlines: " << gpu_data_.streamline_line_counts_.size() << std::endl;
-    std::cout << "  - Magnitude range: [" << gpu_data_.streamline_magnitude_min_ 
-              << ", " << gpu_data_.streamline_magnitude_max_ << "]" << std::endl;
+    if (gpu_data_.streamline_magnitudes_.empty())
+    {
+        gpu_data_.streamline_magnitude_min_ = 0.0f;
+        gpu_data_.streamline_magnitude_max_ = 1.0f;
+    }
+
+    std::cout << "[TimeStepData::updateStreamlineBufferFromSphere] Streamline buffer updated: vertices="
+              << gpu_data_.streamline_vertices_.size() / 3
+              << ", lines=" << gpu_data_.streamline_line_counts_.size() << std::endl;
 }
